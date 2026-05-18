@@ -18,6 +18,10 @@ import {
   MousePointer2,
   Map as MapIcon,
   Compass,
+  PackageSearch,
+  ShieldAlert,
+  Trash2,
+  TrendingDown,
 } from "lucide-react";
 import { Nav } from "@/components/Nav";
 import { Logo } from "@/components/Logo";
@@ -99,7 +103,7 @@ function Hero() {
         <motion.div initial="hidden" animate="show" variants={fade} className="lg:col-span-5">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border glass px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
             <Sparkles className="h-3 w-3 text-cyan" />
-            v0.4 · for AI-generated repos
+            v1.3 · now with dependency intelligence
           </div>
           <h1 className="text-balance text-5xl font-semibold leading-[1.05] tracking-tight md:text-6xl">
             Understand your <br />
@@ -585,6 +589,7 @@ function LocalFirst() {
               <div className="text-muted-foreground">→ scanning 4,128 files…</div>
               <div className="text-muted-foreground">→ resolving import graph…</div>
               <div className="text-muted-foreground">→ detecting 2 circular paths</div>
+              <div className="text-muted-foreground">→ analyzing 128 dependencies…</div>
               <div className="text-cyan">✓ map ready in 8.2s</div>
               <div className="text-muted-foreground">→ opening http://localhost:4870</div>
               <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-emerald/40 bg-emerald/10 px-2 py-1 text-emerald">
@@ -621,6 +626,174 @@ function LocalFirst() {
               <div className="mt-1 text-sm text-muted-foreground">{d}</div>
             </div>
           ))}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function DependencySection() {
+  const packages = [
+    { name: "moment",        risk: 7.5, tags: ["unused", "deprecated", "outdated (major)"], tone: "rose" },
+    { name: "firebase-admin",risk: 5.0, tags: ["high"],                                    tone: "amber" },
+    { name: "lodash",        risk: 3.5, tags: ["outdated (major)"],                        tone: "amber" },
+    { name: "date-fns",      risk: 0,   tags: ["safe"],                                    tone: "emerald" },
+    { name: "eslint",        risk: 0,   tags: ["config-only"],                             tone: "cyan" },
+    { name: "uuid",          risk: 1.0, tags: ["unused"],                                  tone: "cyan" },
+  ] as const;
+
+  const toneTag: Record<string, string> = {
+    rose:    "text-rose border-rose/40 bg-rose/10",
+    amber:   "text-amber border-amber/40 bg-amber/10",
+    emerald: "text-emerald border-emerald/40 bg-emerald/10",
+    cyan:    "text-cyan border-cyan/40 bg-cyan/10",
+  };
+
+  const summary = [
+    { label: "Total",      value: "128", color: "text-foreground" },
+    { label: "Safe",       value: "103", color: "text-emerald" },
+    { label: "Medium",     value: "17",  color: "text-amber" },
+    { label: "High Risk",  value: "6",   color: "text-rose" },
+    { label: "Unused",     value: "14",  color: "text-muted-foreground" },
+    { label: "Outdated",   value: "21",  color: "text-amber" },
+    { label: "Deprecated", value: "3",   color: "text-violet" },
+  ] as const;
+
+  return (
+    <Section
+      id="dependency-intelligence"
+      eyebrow="Dependency Intelligence"
+      title={
+        <>
+          Know exactly what's in <span className="text-gradient">your dependency graph.</span>
+        </>
+      }
+      sub="Local analysis of every package — unused, vulnerable, deprecated, and outdated — without uploading a single file."
+    >
+      <div className="grid grid-cols-12 gap-6">
+        {/* left: package table mockup */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="col-span-12 lg:col-span-7"
+        >
+          <div className="glass-strong overflow-hidden rounded-2xl">
+            {/* summary bar */}
+            <div className="flex flex-wrap gap-3 border-b border-border px-5 py-4">
+              {summary.map((s) => (
+                <div key={s.label} className="flex flex-col items-center">
+                  <span className={`font-mono text-lg font-semibold ${s.color}`}>{s.value}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    {["Package", "Risk", "Status"].map((h) => (
+                      <th key={h} className="px-5 py-2.5 text-left font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {packages.map((pkg) => (
+                    <tr key={pkg.name} className="border-b border-border/50 transition hover:bg-surface">
+                      <td className="px-5 py-3 font-mono text-[13px] font-medium">{pkg.name}</td>
+                      <td className="px-5 py-3">
+                        <span className={`font-mono text-sm font-bold ${pkg.risk >= 6 ? "text-rose" : pkg.risk >= 3 ? "text-amber" : pkg.risk > 0 ? "text-amber/70" : "text-emerald"}`}>
+                          {pkg.risk > 0 ? pkg.risk.toFixed(1) : "—"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex flex-wrap gap-1.5">
+                          {pkg.tags.map((tag) => (
+                            <span key={tag} className={`inline-flex items-center rounded border px-1.5 py-px font-mono text-[10px] font-semibold ${toneTag[pkg.tone]}`}>
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* footer hint */}
+            <div className="flex items-center justify-between px-5 py-3 font-mono text-[11px] text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald animate-pulse-glow" />
+                fully local · no upload
+              </span>
+              <span>click any row for importing files</span>
+            </div>
+          </div>
+
+          {/* ecosystem warning */}
+          <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-amber/30 bg-amber/5 px-4 py-3">
+            <AlertTriangle className="h-4 w-4 flex-none text-amber" />
+            <p className="font-mono text-[11px] text-amber">
+              Overlapping ecosystems detected — <span className="font-semibold">moment · date-fns · dayjs</span> all installed
+            </p>
+          </div>
+        </motion.div>
+
+        {/* right: feature cards */}
+        <div className="col-span-12 grid gap-3 lg:col-span-5">
+          {[
+            {
+              Icon: Trash2,
+              t: "Unused package detection",
+              d: "Finds declared deps with zero source imports. Distinguishes runtime-unused from config-only (eslint, vite, etc.).",
+              tone: "rose",
+            },
+            {
+              Icon: ShieldAlert,
+              t: "Vulnerability scoring",
+              d: "Runs npm audit locally. Critical → +4 pts. High → +3 pts. Surfaces the worst severity per package.",
+              tone: "amber",
+            },
+            {
+              Icon: TrendingDown,
+              t: "Outdated with severity",
+              d: "Major version behind is flagged amber. Minor is dimmed. Patch is silent — only breaking gaps get noise.",
+              tone: "cyan",
+            },
+            {
+              Icon: PackageSearch,
+              t: "Risk score per package",
+              d: "0–10 score combining vulns, deprecated status, unused, and version gap. Sort by risk to find what to fix first.",
+              tone: "violet",
+            },
+          ].map(({ Icon, t, d, tone }) => (
+            <div key={t} className="glass rounded-xl p-4 transition hover:bg-surface-2">
+              <div className="flex items-start gap-3">
+                <span className={`mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg border border-${tone}/40 bg-${tone}/10 text-${tone}`}>
+                  <Icon className="h-4 w-4" />
+                </span>
+                <div>
+                  <div className="text-sm font-medium">{t}</div>
+                  <div className="mt-1 text-xs text-muted-foreground leading-relaxed">{d}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* CLI snippet */}
+          <div className="glass-strong rounded-xl p-4">
+            <div className="font-mono text-[11px] text-muted-foreground">terminal</div>
+            <div className="mt-2 space-y-1 font-mono text-[12px]">
+              <div><span className="text-muted-foreground">$</span> <span className="text-foreground">npx reality-map --deps</span></div>
+              <div className="text-muted-foreground">→ moment      <span className="text-rose">risk 7.5</span>  [unused, deprecated]</div>
+              <div className="text-muted-foreground">→ lodash      <span className="text-amber">risk 3.5</span>  [outdated (major)]</div>
+              <div className="text-muted-foreground">→ date-fns    <span className="text-emerald">risk 0  </span>  [safe]</div>
+              <div className="mt-2 text-muted-foreground">→ <span className="text-amber">⚠ overlapping ecosystems: moment + date-fns + dayjs</span></div>
+            </div>
+          </div>
         </div>
       </div>
     </Section>
@@ -693,6 +866,7 @@ function Landing() {
         <Heatmap />
         <CircularSection />
         <EvolutionSection />
+        <DependencySection />
         <LocalFirst />
         <FinalCTA />
       </main>

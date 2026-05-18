@@ -166,10 +166,19 @@
     document.getElementById("view-health").hidden = tab !== "health";
     document.getElementById("view-impact").hidden = tab !== "impact";
     document.getElementById("view-deadcode").hidden = tab !== "deadcode";
+    document.getElementById("view-deps").hidden = tab !== "deps";
+    const pkgDrawer = document.getElementById("pkg-drawer");
+    if (pkgDrawer) {
+      pkgDrawer.hidden = true;
+    }
+    if (typeof closeDrawer === "function") {
+      closeDrawer();
+    }
     if (tab === "insights") renderInsights();
     if (tab === "files") renderFilesTable();
     if (tab === "health") renderHealth();
     if (tab === "deadcode") renderDeadCode();
+    if (tab === "deps") renderDeps();
   }
 
   document.getElementById("main-tabs").addEventListener("click", (e) => {
@@ -803,8 +812,9 @@
     });
   }
 
-  function chip(t) {
-    return `<span class="chip">${t}</span>`;
+  function chip(t, color) {
+    const style = color ? ` style="color:${color};border-color:${color}33"` : "";
+    return `<span class="chip"${style}>${t}</span>`;
   }
 
   function renderFilesTable() {
@@ -1603,6 +1613,227 @@
       });
       tbody.appendChild(tr);
     });
+  }
+
+  // ── Dependency intelligence tab ───────────────────────────────
+  document.getElementById("deps-refresh")?.addEventListener("click", () => renderDeps(true));
+
+  let _depsCache = null;
+
+  function depsRiskColor(score) {
+    if (score >= 7) return "var(--rose)";
+    if (score >= 4) return "var(--amber)";
+    if (score >= 1) return "oklch(0.82 0.16 75 / 0.7)";
+    return "var(--emerald)";
+  }
+
+  function depsSeverityBadge(sev) {
+    const colors = { critical: "var(--rose)", high: "var(--amber)", moderate: "oklch(0.82 0.16 75 / 0.7)", low: "var(--muted)" };
+    const c = colors[sev] || colors.low;
+    return `<span style="font-size:10px;color:${c};font-weight:600;text-transform:uppercase">${sev}</span>`;
+  }
+
+  function depsStatusBadges(pkg) {
+    const badges = [];
+    if (pkg.vulnerabilities.length) {
+      const o = ["low", "moderate", "high", "critical"];
+      const top = pkg.vulnerabilities.reduce((a, b) => o.indexOf(b.severity) > o.indexOf(a.severity) ? b : a, pkg.vulnerabilities[0]);
+      badges.push(depsSeverityBadge(top.severity));
+    }
+    if (pkg.isDeprecated)  badges.push(`<span style="font-size:10px;color:oklch(0.72 0.19 295);font-weight:600">deprecated</span>`);
+    if (pkg.isUnused)      badges.push(`<span style="font-size:10px;color:var(--muted);font-weight:600">unused</span>`);
+    if (pkg.isConfigOnly)  badges.push(`<span style="font-size:10px;color:var(--muted)">config-only</span>`);
+    if (pkg.outdatedSeverity === "major")
+      badges.push(`<span style="font-size:10px;color:var(--amber);font-weight:600">outdated (major)</span>`);
+    else if (pkg.outdatedSeverity === "minor")
+      badges.push(`<span style="font-size:10px;color:var(--muted);font-weight:600">outdated (minor)</span>`);
+    else if (pkg.outdatedSeverity === "patch")
+      badges.push(`<span style="font-size:10px;color:var(--muted)">outdated (patch)</span>`);
+    return badges.join(" ");
+  }
+
+  function openPkgDrawer(pkg) {
+    const drawer = document.getElementById("pkg-drawer");
+    const title  = document.getElementById("pkg-drawer-title");
+    const meta   = document.getElementById("pkg-drawer-meta");
+    const body   = document.getElementById("pkg-drawer-body");
+    if (!drawer) return;
+
+    title.textContent = pkg.name;
+    meta.textContent  = `${pkg.type === "devDep" ? "devDependency" : "dependency"} · declared ${pkg.declaredRange}`;
+
+    const rows = [];
+    if (pkg.installedVersion) rows.push(`<div class="drawer-kv"><span class="dim">installed</span><span>${pkg.installedVersion}</span></div>`);
+    if (pkg.outdatedInfo?.latest) rows.push(`<div class="drawer-kv"><span class="dim">latest</span><span style="color:${pkg.outdatedInfo.current !== pkg.outdatedInfo.latest ? "var(--amber)" : "var(--emerald)"}">${pkg.outdatedInfo.latest}</span></div>`);
+    rows.push(`<div class="drawer-kv"><span class="dim">risk score</span><span style="color:${depsRiskColor(pkg.riskScore)};font-weight:700">${pkg.riskScore}/10</span></div>`);
+    rows.push(`<div class="drawer-kv"><span class="dim">import count</span><span>${pkg.importCount}</span></div>`);
+    if (pkg.description) rows.push(`<div class="drawer-kv"><span class="dim">description</span><span style="color:var(--muted);font-size:11px">${pkg.description}</span></div>`);
+
+    let html = `<div class="drawer-section">${rows.join("")}</div>`;
+
+    if (pkg.isDeprecated) {
+      html += `<div class="drawer-section warn-box" style="display:block">
+        <strong style="color:oklch(0.72 0.19 295)">⚠ Deprecated</strong>
+        <div style="margin-top:4px;font-size:11px;color:var(--muted)">${pkg.deprecationMessage || "This package is deprecated."}</div>
+      </div>`;
+    }
+
+    if (pkg.vulnerabilities.length) {
+      html += `<div class="drawer-section">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">Vulnerabilities (${pkg.vulnerabilities.length})</div>
+        ${pkg.vulnerabilities.map(v => `
+          <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+            ${depsSeverityBadge(v.severity)}
+            <div style="margin-top:3px;font-size:12px">${v.title}</div>
+            ${v.url ? `<a href="${v.url}" target="_blank" rel="noopener" style="font-size:10px;color:var(--cyan)">${v.url}</a>` : ""}
+          </div>`).join("")}
+      </div>`;
+    }
+
+    if (pkg.importingFiles.length) {
+      html += `<div class="drawer-section">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">Importing files (${pkg.importingFiles.length})</div>
+        ${pkg.importingFiles.map(f => `<div style="font-size:11px;color:var(--cyan);padding:2px 0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" class="dep-file-link" data-path="${f}">${f}</div>`).join("")}
+      </div>`;
+    } else if (pkg.isUnused) {
+      html += `<div class="drawer-section"><div class="dim" style="font-size:12px">No source files import this package.</div></div>`;
+    }
+
+    body.innerHTML = html;
+    drawer.hidden = false;
+
+    body.querySelectorAll(".dep-file-link").forEach(el => {
+      el.addEventListener("click", () => {
+        drawer.hidden = true;
+        setTab("map");
+        showFileDrawer(el.dataset.path);
+      });
+    });
+  }
+
+  document.getElementById("pkg-drawer-close")?.addEventListener("click", () => {
+    document.getElementById("pkg-drawer").hidden = true;
+  });
+
+  async function renderDeps(forceRefresh = false) {
+    const summary     = document.getElementById("deps-summary");
+    const tbody       = document.querySelector("#tbl-deps tbody");
+    const ecosystem   = document.getElementById("deps-ecosystem");
+    const auditNotice = document.getElementById("deps-audit-notice");
+
+    if (!summary || !tbody) return;
+
+    if (!_depsCache || forceRefresh) {
+      summary.innerHTML = "<span class='dim'>Analyzing dependencies…</span>";
+      tbody.innerHTML = "";
+      try {
+        _depsCache = await fetch("/api/deps").then(r => r.json());
+      } catch {
+        summary.innerHTML = "<span class='dim'>Failed to load dependency data.</span>";
+        return;
+      }
+    }
+
+    const data = _depsCache;
+
+    if (!data.available) {
+      summary.innerHTML = `<span class="dim">${data.error || "Not available"}</span>`;
+      return;
+    }
+
+    const s = data.summary;
+
+    summary.innerHTML = [
+      chip(`${s.total} packages`),
+      s.safe       ? chip(`${s.safe} safe`,       "var(--emerald)") : "",
+      s.mediumRisk ? chip(`${s.mediumRisk} medium`, "var(--amber)")  : "",
+      s.highRisk   ? chip(`${s.highRisk} high risk`, "var(--rose)")  : "",
+      s.critical   ? chip(`${s.critical} critical`, "var(--rose)")   : "",
+      s.unused     ? chip(`${s.unused} unused`,     "var(--muted)")  : "",
+      s.deprecated ? chip(`${s.deprecated} deprecated`, "oklch(0.72 0.19 295)") : "",
+      s.outdated   ? chip(`${s.outdated} outdated`, "var(--muted)")  : "",
+    ].join("");
+
+    // Ecosystem warnings
+    if (data.ecosystemWarnings?.length) {
+      ecosystem.hidden = false;
+      ecosystem.innerHTML = data.ecosystemWarnings.map(w => `
+        <div style="padding:10px 14px;margin-bottom:8px;border-radius:10px;border:1px solid var(--amber);background:oklch(0.82 0.16 75 / 0.08);font-size:12px">
+          <strong style="color:var(--amber)">⚠ Overlapping ecosystems</strong>
+          <div style="margin-top:3px;color:var(--muted)">${w.message}</div>
+        </div>`).join("");
+    } else {
+      ecosystem.hidden = true;
+      ecosystem.innerHTML = "";
+    }
+
+    if (!data.auditAvailable) {
+      auditNotice.hidden = false;
+      auditNotice.textContent = "ℹ Vulnerability scan unavailable — run npm audit in your project for the full picture.";
+    } else {
+      auditNotice.hidden = true;
+    }
+
+    // Filter + render table
+    function applyFilters() {
+      const q        = (document.getElementById("deps-filter")?.value || "").toLowerCase();
+      const riskF    = document.getElementById("deps-risk-filter")?.value || "";
+      const typeF    = document.getElementById("deps-type-filter")?.value || "";
+      const sevOrder = ["low", "moderate", "high", "critical"];
+
+      const filtered = data.packages.filter(p => {
+        if (q && !p.name.toLowerCase().includes(q)) return false;
+        if (typeF && p.type !== typeF) return false;
+        if (riskF === "critical")   return p.vulnerabilities.some(v => v.severity === "critical");
+        if (riskF === "high")       return p.vulnerabilities.some(v => sevOrder.indexOf(v.severity) >= 2);
+        if (riskF === "risky")      return p.riskScore >= 3;
+        if (riskF === "unused")     return p.isUnused;
+        if (riskF === "deprecated") return p.isDeprecated;
+        if (riskF === "outdated")   return p.outdatedSeverity != null;
+        return true;
+      });
+
+      tbody.innerHTML = "";
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">No packages match filters.</td></tr>`;
+        return;
+      }
+
+      filtered.forEach(pkg => {
+        const tr = document.createElement("tr");
+        tr.style.cursor = "pointer";
+        const versionColor = pkg.outdatedSeverity === "major" ? "var(--amber)" : pkg.outdatedSeverity ? "var(--muted)" : null;
+        const versionStr = versionColor
+          ? `<span style="color:${versionColor}">${pkg.installedVersion || pkg.declaredRange}</span>`
+          : `<span>${pkg.installedVersion || pkg.declaredRange || "—"}</span>`;
+        const importStr = pkg.importCount > 0
+          ? `<span style="color:var(--cyan)">${pkg.importCount}</span>`
+          : `<span style="color:var(--muted)">0</span>`;
+
+        tr.innerHTML = `
+          <td style="font-weight:500">${pkg.name}</td>
+          <td style="color:var(--muted);font-size:11px">${pkg.type === "devDep" ? "dev" : "dep"}</td>
+          <td class="mono">${versionStr}</td>
+          <td>${importStr}</td>
+          <td><span style="color:${depsRiskColor(pkg.riskScore)};font-weight:700;font-size:12px">${pkg.riskScore > 0 ? pkg.riskScore : "—"}</span></td>
+          <td style="white-space:nowrap">${depsStatusBadges(pkg) || '<span style="color:var(--muted);font-size:10px">safe</span>'}</td>
+        `;
+        tr.addEventListener("click", () => openPkgDrawer(pkg));
+        tbody.appendChild(tr);
+      });
+    }
+
+    applyFilters();
+
+    // Wire filters once
+    if (!document.getElementById("deps-filter")?._rmBound) {
+      const dF = document.getElementById("deps-filter");
+      const rF = document.getElementById("deps-risk-filter");
+      const tF = document.getElementById("deps-type-filter");
+      if (dF) { dF.addEventListener("input", applyFilters); dF._rmBound = true; }
+      if (rF) { rF.addEventListener("change", applyFilters); }
+      if (tF) { tF.addEventListener("change", applyFilters); }
+    }
   }
 
   render();
