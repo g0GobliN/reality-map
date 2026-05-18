@@ -1,14 +1,11 @@
 <p align="center">
-  <img src="src/img/git_logo.PNG" alt="RealityMap Logo" width="480" />
-  <br/>
+  <img src="src/img/git_logo.PNG" alt="RealityMap Logo" width="900" />
   <strong>Visual architecture explorer for any JavaScript/TypeScript codebase. Zero config, zero upload, runs entirely local.</strong>
-  <br/><br/>
+  <br/>
   <code>npx reality-map</code>
   <br/>
   <sub>By <a href="https://github.com/g0GobliN">Vishal Gurung</a> · <a href="https://github.com/g0GobliN">@g0GobliN</a></sub>
 </p>
-
-Opens an interactive dependency map in your browser in seconds.
 
 ---
 
