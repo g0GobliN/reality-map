@@ -9,6 +9,11 @@ const { version: PKG_VERSION } = require("../package.json");
 const { scanProject } = require("../lib/scan.js");
 const { startServer } = require("../lib/server.js");
 const { moduleGraphToDot, moduleGraphToMermaid } = require("../lib/graph-export.js");
+const { computeHealth } = require("../lib/health.js");
+const { loadBaseline, diffScans } = require("../lib/diff.js");
+const { loadRules, checkRules } = require("../lib/rules.js");
+const { buildOrphanReport } = require("../lib/orphans.js");
+const { renderHtml } = require("../lib/html-export.js");
 
 function printMachineError(code, message, extra) {
   const payload = { type: "reality-map-error", code, message, ...extra };
@@ -36,6 +41,16 @@ function parseArgs(argv) {
     exportDot: null,
     exportMermaid: null,
     graphDepth: 1,
+    health: false,
+    failBelow: null,
+    baseline: null,
+    diffOut: null,
+    rulesFile: null,
+    failOnRules: false,
+    orphansOut: null,
+    exportHtml: null,
+    showTree: null,
+    treeDepth: 3,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -111,6 +126,46 @@ function parseArgs(argv) {
         process.exit(1);
       }
       args.graphDepth = Math.max(1, Math.min(5, n));
+    } else if (a === "--health") {
+      args.health = true;
+    } else if (a === "--fail-below") {
+      const n = Number(argv[++i]);
+      if (!Number.isFinite(n) || n < 0 || n > 100) {
+        printMachineError("EARG", "--fail-below requires a 0–100 number");
+        process.exit(1);
+      }
+      args.failBelow = n;
+      args.health = true;
+    } else if (a === "--baseline") {
+      const p = argv[++i];
+      if (!p || p.startsWith("-")) { printMachineError("EARG", "--baseline requires a file"); process.exit(1); }
+      args.baseline = p;
+    } else if (a === "--diff-out") {
+      const p = argv[++i];
+      if (!p || p.startsWith("-")) { printMachineError("EARG", "--diff-out requires a file"); process.exit(1); }
+      args.diffOut = p;
+    } else if (a === "--rules") {
+      const p = argv[++i];
+      if (!p || p.startsWith("-")) { printMachineError("EARG", "--rules requires a file"); process.exit(1); }
+      args.rulesFile = p;
+    } else if (a === "--fail-on-rules") {
+      args.failOnRules = true;
+    } else if (a === "--report-orphans") {
+      const p = argv[++i];
+      if (!p || p.startsWith("-")) { printMachineError("EARG", "--report-orphans requires a file"); process.exit(1); }
+      args.orphansOut = p;
+    } else if (a === "--export-html") {
+      const p = argv[++i];
+      if (!p || p.startsWith("-")) { printMachineError("EARG", "--export-html requires a file"); process.exit(1); }
+      args.exportHtml = p;
+    } else if (a === "--tree") {
+      const v = argv[++i];
+      if (!v || v.startsWith("-")) { printMachineError("EARG", "--tree requires a module id (e.g. src/components)"); process.exit(1); }
+      args.showTree = v;
+    } else if (a === "--tree-depth") {
+      const n = Number(argv[++i]);
+      if (!Number.isFinite(n) || n < 1) { printMachineError("EARG", "--tree-depth requires a positive number"); process.exit(1); }
+      args.treeDepth = Math.min(8, n);
     } else if (a === "--help" || a === "-h") {
       console.log(`reality-map — visual architecture explorer (v${PKG_VERSION})
 
@@ -145,6 +200,20 @@ Options:
                      Write a Mermaid flowchart for --graph-depth
       --graph-depth <n>
                      Depth slice for --export-dot / --export-mermaid (1–5, default 1)
+      --health         Print a health score (0–100, A–F) and contributing reasons
+      --fail-below <n> Exit 1 if computed health score < n (implies --health)
+      --baseline <file>
+                     Compare against a previous --export scan and print a diff
+      --diff-out <file>
+                     Write the diff (with --baseline) to a JSON file
+      --rules <file>   Load layer rules JSON ({layers, forbid}) and report violations
+      --fail-on-rules  Exit 1 when any layer rule violation is found
+      --report-orphans <file>
+                     Write isolated/sink/source files report to JSON
+      --export-html <file>
+                     Write a self-contained HTML snapshot (graph + health + tables)
+      --tree <module> Print a dependency tree for a module id (depth 1)
+      --tree-depth <n> Limit --tree depth (default 3, max 8)
   -h, --help         Show help
   -V, --version      Print version
 
@@ -172,6 +241,10 @@ or anything under it; \`*\` and \`?\` match within a single path segment.
   if (args.summaryJson || args.listFiles || args.exportDot || args.exportMermaid) {
     args.noServe = true;
     args.open = false;
+  }
+  if (args.exportHtml || args.orphansOut || args.baseline || args.rulesFile || args.health || args.showTree) {
+    args.open = false;
+    if (!args.jsonOut && !args.exportPath) args.noServe = true;
   }
   return args;
 }
