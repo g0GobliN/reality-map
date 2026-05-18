@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import logoUrl from "../img/logo.PNG";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { SiteCommandMenu } from "@/components/SiteCommandMenu";
@@ -93,6 +94,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:site", content: "@RealityMap" },
     ],
     links: [
+      {
+        rel: "icon",
+        type: "image/png",
+        href: logoUrl,
+      },
       {
         rel: "stylesheet",
         href: appCss,

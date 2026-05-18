@@ -55,7 +55,13 @@
 
   let selected = null;
   let stack = [];
-  let view = { x: 0, y: 0, k: 1, depth: Number(localStorage.getItem("rm-depth")) || 1, prefix: null };
+  let view = {
+    x: 0,
+    y: 0,
+    k: 1,
+    depth: Number(localStorage.getItem("rm-depth")) || 1,
+    prefix: null,
+  };
   let currentViewGraph = null;
   let activeTab = "map";
   let drawerData = null; // { type: 'module'|'file', id }
@@ -233,7 +239,9 @@
   }
   helpBtn.onclick = toggleHelp;
   helpClose.onclick = toggleHelp;
-  helpModal.onclick = (e) => { if (e.target === helpModal) toggleHelp(); };
+  helpModal.onclick = (e) => {
+    if (e.target === helpModal) toggleHelp();
+  };
 
   function renderDrawerBreadcrumb() {
     const bc = document.getElementById("drawer-breadcrumb");
@@ -290,13 +298,14 @@
       const isIsolated = node.isOrphan;
       drawerWarn.innerHTML = `<h4>⚠️ Architecture Alert</h4>
         <p><strong>What's the issue?</strong> ${node.warnMsg || "Circular dependency detected"}</p>
-        <div class="alert-explanation" style="margin-top:12px; padding:12px; background:rgba(0,0,0,0.25); border-radius:8px; border-left:4px solid ${isIsolated ? '#fbbf24' : '#fb7185'}">
+        <div class="alert-explanation" style="margin-top:12px; padding:12px; background:rgba(0,0,0,0.25); border-radius:8px; border-left:4px solid ${isIsolated ? "#fbbf24" : "#fb7185"}">
           <p style="font-size:0.95em; margin-bottom:8px; color:var(--foreground)"><strong>Simple Explanation:</strong></p>
           <p style="font-size:0.85em; line-height:1.5; color:var(--muted)">
-            ${isIsolated
-          ? "This folder is like an <strong>'Abandoned Island'</strong>. The code inside might be perfectly fine, but since no other part of your app is using it, it's just 'isolated'. If you aren't using it anymore, it might be safe to delete!"
-          : "This is a <strong>'Tangled Knot'</strong>. These parts of your code are stuck in a loop (A needs B, B needs A). This makes it very hard to change things because a small fix in one place might loop back and break something else."
-        }
+            ${
+              isIsolated
+                ? "This folder is like an <strong>'Abandoned Island'</strong>. The code inside might be perfectly fine, but since no other part of your app is using it, it's just 'isolated'. If you aren't using it anymore, it might be safe to delete!"
+                : "This is a <strong>'Tangled Knot'</strong>. These parts of your code are stuck in a loop (A needs B, B needs A). This makes it very hard to change things because a small fix in one place might loop back and break something else."
+            }
           </p>
         </div>`;
       drawerWarn.hidden = false;
@@ -310,7 +319,7 @@
       filesData = await fetch(
         `/api/module/${encodeURIComponent(moduleId)}/files?depth=${depth}`,
       ).then((r) => r.json());
-    } catch { }
+    } catch {}
 
     // Build file list
     drawerFiles.innerHTML = `<h4>Files in module</h4>`;
@@ -322,10 +331,17 @@
     const deadFiles = issueEntries.filter(([, v]) => v.includes("dead-code"));
     if (issueEntries.length > 0) {
       const bannerEl = document.createElement("div");
-      bannerEl.style.cssText = "margin-bottom:10px;padding:10px 12px;border-radius:8px;background:rgba(0,0,0,0.2);border-left:4px solid var(--rose,#fb7185);font-size:0.85em;line-height:1.6";
+      bannerEl.style.cssText =
+        "margin-bottom:10px;padding:10px 12px;border-radius:8px;background:rgba(0,0,0,0.2);border-left:4px solid var(--rose,#fb7185);font-size:0.85em;line-height:1.6";
       const parts = [];
-      if (cycleFiles.length) parts.push(`<span style="color:${TONE.rose}">⚠ ${cycleFiles.length} cycle bridge${cycleFiles.length > 1 ? "s" : ""}</span>`);
-      if (deadFiles.length) parts.push(`<span style="color:${TONE.amber}">☠ ${deadFiles.length} dead file${deadFiles.length > 1 ? "s" : ""}</span>`);
+      if (cycleFiles.length)
+        parts.push(
+          `<span style="color:${TONE.rose}">⚠ ${cycleFiles.length} cycle bridge${cycleFiles.length > 1 ? "s" : ""}</span>`,
+        );
+      if (deadFiles.length)
+        parts.push(
+          `<span style="color:${TONE.amber}">☠ ${deadFiles.length} dead file${deadFiles.length > 1 ? "s" : ""}</span>`,
+        );
       bannerEl.innerHTML = `<strong>Problematic files:</strong> ${parts.join(" · ")}`;
       drawerFiles.appendChild(bannerEl);
     }
@@ -352,16 +368,21 @@
       const issues = fd.issues || nodeFileIssues[p] || [];
 
       // Check if it's a config/meta file to show a subtle hint
-      const isConfig = p.toLowerCase().includes('config.') || p.startsWith('.') || p.toLowerCase() === 'package.json';
-      const configTag = isConfig ? `<span class="fi-meta" style="opacity:0.6;margin-right:4px">[Config]</span>` : '';
+      const isConfig =
+        p.toLowerCase().includes("config.") ||
+        p.startsWith(".") ||
+        p.toLowerCase() === "package.json";
+      const configTag = isConfig
+        ? `<span class="fi-meta" style="opacity:0.6;margin-right:4px">[Config]</span>`
+        : "";
 
-      let issueTag = '';
-      let dotColor = 'var(--muted)';
-      if (issues.includes('cycle-bridge')) {
+      let issueTag = "";
+      let dotColor = "var(--muted)";
+      if (issues.includes("cycle-bridge")) {
         issueTag = `<span class="fi-tag" style="background:${TONE.rose}33; color:${TONE.rose}; border: 1px solid ${TONE.rose}66; padding: 0 4px; border-radius: 4px; font-size: 10px; margin-right: 6px;">[Part of Cycle]</span>`;
         dotColor = TONE.rose;
         item.classList.add("fi-problem-cycle");
-      } else if (issues.includes('dead-code')) {
+      } else if (issues.includes("dead-code")) {
         issueTag = `<span class="fi-tag" style="background:${TONE.amber}33; color:${TONE.amber}; border: 1px solid ${TONE.amber}66; padding: 0 4px; border-radius: 4px; font-size: 10px; margin-right: 6px;">[Dead File]</span>`;
         dotColor = TONE.amber;
         item.classList.add("fi-problem-dead");
@@ -398,7 +419,7 @@
     let data = { path: filePath, imports: { specs: [], details: [] }, symbols: [], loc: 0 };
     try {
       data = await fetch(`/api/file/${encodeURIComponent(filePath)}`).then((r) => r.json());
-    } catch { }
+    } catch {}
 
     drawerTitle.textContent = filePath;
     drawerMeta.textContent = `${data.loc} lines · ${data.symbols.length} symbols · ${data.imports.specs.length} imports`;
@@ -530,7 +551,7 @@
         r.json(),
       );
       showSearchResults(data.results || []);
-    } catch { }
+    } catch {}
   });
 
   globalSearch.addEventListener("keydown", (e) => {
@@ -862,7 +883,7 @@
       NH = 70;
 
     // Find max LOC for scaling
-    const maxLoc = Math.max(...graph.nodes.map(n => n.loc), 1);
+    const maxLoc = Math.max(...graph.nodes.map((n) => n.loc), 1);
 
     // Activity / Blast state
     const now = Date.now() / 1000;
@@ -1002,7 +1023,9 @@
             positionEdgeTooltip(ev);
           });
           badgeEl.addEventListener("mousemove", (ev) => positionEdgeTooltip(ev));
-          badgeEl.addEventListener("mouseleave", () => { edgeTooltip.hidden = true; });
+          badgeEl.addEventListener("mouseleave", () => {
+            edgeTooltip.hidden = true;
+          });
         }
       }
 
@@ -1127,8 +1150,14 @@
     // Draw nodes
     graph.nodes.forEach((n) => {
       const rect = document.createElementNS(NS, "rect");
-      const extraW = Math.min(60, (n.loc / (Math.max(...graph.nodes.map(node => node.loc), 1)) * 100));
-      const extraH = Math.min(40, (n.loc / (Math.max(...graph.nodes.map(node => node.loc), 1)) * 60));
+      const extraW = Math.min(
+        60,
+        (n.loc / Math.max(...graph.nodes.map((node) => node.loc), 1)) * 100,
+      );
+      const extraH = Math.min(
+        40,
+        (n.loc / Math.max(...graph.nodes.map((node) => node.loc), 1)) * 60,
+      );
       const curW = 220 + extraW;
       const curH = 70 + extraH;
 
@@ -1179,7 +1208,7 @@
       dragging = false;
       try {
         g.releasePointerCapture(e.pointerId);
-      } catch { }
+      } catch {}
       if (moved) e.stopPropagation();
     });
   }
@@ -1206,7 +1235,7 @@
     panning = false;
     try {
       svg.releasePointerCapture(e.pointerId);
-    } catch { }
+    } catch {}
   });
   svg.addEventListener("click", () => {
     if (selected) {
@@ -1257,10 +1286,10 @@
     if (fromButton) stats.textContent = "rescanning…";
     const r = fromButton
       ? await fetch("/api/rescan", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ maxDepth: Number(depthSelect.value) || maxDepth }),
-      }).then((x) => x.json())
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ maxDepth: Number(depthSelect.value) || maxDepth }),
+        }).then((x) => x.json())
       : await fetch("/api/graph").then((x) => x.json());
     if (r.error) {
       stats.textContent = "rescan failed: " + r.error;
@@ -1342,7 +1371,7 @@
           lastGeneratedAt = m.generatedAt;
           await loadGraph(false);
         }
-      } catch { }
+      } catch {}
     }, 3200);
   }
 
@@ -1410,13 +1439,14 @@
         <span class="health-reason-icon">${icons[r.kind] || "⚠️"}</span>
         <div class="health-reason-body">
           <div class="health-reason-msg">${r.msg}</div>
-          ${r.samples
-          ? `<div class="health-reason-detail">${r.samples
-            .slice(0, 3)
-            .map((s) => s.path || s)
-            .join(" · ")}</div>`
-          : ""
-        }
+          ${
+            r.samples
+              ? `<div class="health-reason-detail">${r.samples
+                  .slice(0, 3)
+                  .map((s) => s.path || s)
+                  .join(" · ")}</div>`
+              : ""
+          }
         </div>
         <span class="health-penalty">−${r.penalty} pts</span>
       `;
@@ -1503,16 +1533,16 @@
       <table class="data-table">
         <thead><tr><th>File</th><th title="Distance from the changed file (Steps away)">Steps Away (Depth)</th><th>LOC</th><th>Risk</th></tr></thead>
         <tbody>${data.affected
-        .map(
-          (f) => `
+          .map(
+            (f) => `
           <tr>
             <td style="color:${f.direct ? "var(--cyan)" : "var(--fg)"}">${f.path}${f.direct ? " <span style='color:var(--muted);font-size:10px'>direct</span>" : ""}</td>
             <td>${f.depth}</td>
             <td>${f.loc}</td>
             <td><span style="color:${f.risk >= 7 ? "var(--rose)" : f.risk >= 4 ? "var(--amber)" : "var(--emerald)"};font-weight:600">${f.risk}/10</span></td>
           </tr>`,
-        )
-        .join("")}
+          )
+          .join("")}
         </tbody>
       </table>
     `;

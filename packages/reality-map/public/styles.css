@@ -43,7 +43,7 @@ body {
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand-author { font-size: 11px; text-decoration: none; opacity: 0.6; transition: opacity 0.2s; }
 .brand-author:hover { opacity: 1; color: var(--cyan); }
-.logo-dot { width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, var(--cyan), var(--violet)); box-shadow: 0 0 16px var(--cyan); }
+.logo-img { width: 18px; height: 18px; border-radius: 4px; object-fit: cover; }
 .stats { margin-left: auto; flex: 1 1 140px; text-align: right; min-width: 0; color: var(--muted); }
 .actions { display: flex; gap: 8px; }
 .actions button {
