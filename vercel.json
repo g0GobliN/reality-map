@@ -1,4 +1,6 @@
 {
-  "buildCommand": "npm run build:vercel",
-  "framework": null
+  "outputDirectory": "dist/client",
+  "buildCommand": "npm run build",
+  "framework": null,
+  "rewrites": [{ "source": "/(.*)", "destination": "/_shell" }]
 }
