@@ -298,6 +298,10 @@ or anything under it; \`*\` and \`?\` match within a single path segment.
     args.open = false;
     args.noServe = true;
   }
+  if (args.exportCsv || args.why || args.inspect || args.insights || args.extStats || args.unusedDeps || args.initRules) {
+    args.noServe = true;
+    args.open = false;
+  }
   return args;
 }
 
