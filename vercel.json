@@ -2,5 +2,5 @@
   "outputDirectory": "dist/client",
   "buildCommand": "npm run build",
   "framework": null,
-  "rewrites": [{ "source": "/(.*)", "destination": "/_shell" }]
+  "rewrites": [{ "source": "/(.*)", "destination": "/_shell.html" }]
 }
