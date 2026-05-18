@@ -15,6 +15,7 @@ const { loadRules, checkRules } = require("../lib/rules.js");
 const { buildOrphanReport } = require("../lib/orphans.js");
 const { renderHtml } = require("../lib/html-export.js");
 const { extStats, unusedDeps, shortestPath, inspectModule, filesCsv, RULES_TEMPLATE } = require("../lib/extras.js");
+const { analyzeDeps } = require("../lib/deps.js");
 
 function printMachineError(code, message, extra) {
   const payload = { type: "reality-map-error", code, message, ...extra };
@@ -61,6 +62,9 @@ function parseArgs(argv) {
     exportCsv: null,
     initRules: null,
     noColor: false,
+    deps: false,
+    depsJson: false,
+    failOnVuln: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -205,6 +209,21 @@ function parseArgs(argv) {
       args.initRules = p;
     } else if (a === "--no-color") {
       args.noColor = true;
+    } else if (a === "--deps") {
+      args.deps = true;
+    } else if (a === "--deps-json") {
+      args.depsJson = true;
+      args.deps = true;
+    } else if (a === "--fail-on-vuln") {
+      const sev = argv[i + 1];
+      const valid = ["low", "moderate", "high", "critical"];
+      if (sev && valid.includes(sev) && !sev.startsWith("-")) {
+        args.failOnVuln = sev;
+        i++;
+      } else {
+        args.failOnVuln = "critical";
+      }
+      args.deps = true;
     } else if (a === "--help" || a === "-h") {
       console.log(`reality-map — visual architecture explorer (v${PKG_VERSION})
 
@@ -266,6 +285,11 @@ Options:
       --init-rules [file]
                      Scaffold a starter layer-rules JSON (default reality-map.rules.json)
       --no-color     Disable ANSI colors in terminal output
+      --deps         Run dependency intelligence: unused, deprecated, vulnerable, outdated
+      --deps-json    Print dependency analysis as JSON and exit (implies --deps)
+      --fail-on-vuln [severity]
+                     Exit 1 if vulnerabilities at or above severity are found (default: critical)
+                     Severity levels: low, moderate, high, critical
   -h, --help         Show help
   -V, --version      Print version
 
@@ -299,6 +323,10 @@ or anything under it; \`*\` and \`?\` match within a single path segment.
     args.noServe = true;
   }
   if (args.exportCsv || args.why || args.inspect || args.insights || args.extStats || args.unusedDeps || args.initRules) {
+    args.noServe = true;
+    args.open = false;
+  }
+  if (args.deps) {
     args.noServe = true;
     args.open = false;
   }
@@ -727,6 +755,100 @@ function buildDependencyTree(scan, modId, maxDepth) {
       if (args.failOnUnused && u.unused.length) {
         printMachineError("EUNUSED", `${u.unused.length} unused dependency(s) declared in package.json`, { unused: u.unused });
         process.exit(1);
+      }
+    }
+  }
+
+  // ---- Dependency intelligence --------------------------------------------
+  if (args.deps) {
+    let depData;
+    try {
+      depData = await analyzeDeps(args.root, scan);
+    } catch (e) {
+      printMachineError("EDEPS", `dependency analysis failed: ${e.message || e}`);
+      console.error("reality-map --deps failed:", e.message || e);
+      process.exit(1);
+    }
+
+    if (args.depsJson) {
+      console.log(JSON.stringify(depData));
+      process.exit(0);
+    }
+
+    if (!depData.available) {
+      log(`  ${dim("deps")}     ${depData.error || "unavailable"}`);
+    } else {
+      const s = depData.summary;
+      const sevColor = (sev) => {
+        if (sev === "critical") return red;
+        if (sev === "high") return yellow;
+        return dim;
+      };
+
+      log("");
+      log(`  ${bold("dependency intelligence")}  ${dim(`(${s.total} declared)`)}`);
+      log(`    ${dim("·")} ${green("safe")}        ${s.safe}`);
+      if (s.mediumRisk) log(`    ${dim("·")} ${yellow("medium risk")} ${s.mediumRisk}`);
+      if (s.highRisk)   log(`    ${dim("·")} ${red("high risk")}   ${s.highRisk}`);
+      if (s.unused)     log(`    ${dim("·")} ${dim("unused")}      ${yellow(s.unused)}`);
+      if (s.deprecated) log(`    ${dim("·")} ${dim("deprecated")}  ${yellow(s.deprecated)}`);
+      if (s.outdated)   log(`    ${dim("·")} ${dim("outdated")}    ${s.outdated}`);
+
+      if (s.critical || s.high || s.moderate || s.low) {
+        log("");
+        log(`    ${dim("vulnerabilities")}`);
+        if (s.critical) log(`      ${red("critical")} ${s.critical}`);
+        if (s.high)     log(`      ${yellow("high")}     ${s.high}`);
+        if (s.moderate) log(`      ${dim("moderate")} ${s.moderate}`);
+        if (s.low)      log(`      ${dim("low")}      ${s.low}`);
+        if (!depData.auditAvailable) {
+          log(`      ${dim("(npm audit not available — run 'npm audit' manually)")}`);
+        }
+      } else if (!depData.auditAvailable) {
+        log(`    ${dim("·")} ${dim("vuln scan")}  unavailable (npm audit failed)`);
+      } else {
+        log(`    ${dim("·")} ${green("✓")} ${dim("no known vulnerabilities")}`);
+      }
+
+      // top risky packages
+      const risky = depData.packages.filter(p => p.riskScore >= 3).slice(0, 12);
+      if (risky.length) {
+        log("");
+        log(`    ${dim("top risk packages")}`);
+        for (const p of risky) {
+          const tags = [];
+          if (p.vulnerabilities.length) tags.push(sevColor(p.vulnerabilities[0].severity)(p.vulnerabilities[0].severity));
+          if (p.isDeprecated) tags.push(dim("deprecated"));
+          if (p.isUnused)     tags.push(dim("unused"));
+          if (p.outdatedInfo && p.outdatedInfo.current !== p.outdatedInfo.latest) tags.push(dim("outdated"));
+          const tagStr = tags.length ? `  ${dim("[")}${tags.join(dim(", "))}${dim("]")}` : "";
+          log(`      ${dim("·")} ${p.name.padEnd(38)} ${yellow("risk " + p.riskScore)}${tagStr}`);
+        }
+      }
+
+      // ecosystem warnings
+      if (depData.ecosystemWarnings.length) {
+        log("");
+        log(`    ${bold(yellow("⚠"))}  ${bold("overlapping ecosystems detected")}`);
+        for (const w of depData.ecosystemWarnings) {
+          log(`      ${dim("·")} ${w.message}`);
+        }
+      }
+
+      log("");
+
+      // fail gate
+      if (args.failOnVuln) {
+        const sevOrder = ["low", "moderate", "high", "critical"];
+        const minIdx   = sevOrder.indexOf(args.failOnVuln);
+        const failing  = depData.packages.some(p =>
+          p.vulnerabilities.some(v => sevOrder.indexOf(v.severity) >= minIdx)
+        );
+        if (failing) {
+          printMachineError("EVULN", `vulnerabilities at or above '${args.failOnVuln}' detected`);
+          console.error(`reality-map: failing due to --fail-on-vuln ${args.failOnVuln}`);
+          process.exit(1);
+        }
       }
     }
   }

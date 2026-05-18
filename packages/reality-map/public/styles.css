@@ -194,6 +194,16 @@ body {
   50% { opacity: 1; box-shadow: 0 0 8px oklch(0.72 0.20 18 / 0.5); }
 }
 
+/* ── Deps loading spinner ────────────────────────────────────── */
+.deps-spinner {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--cyan);
+  animation: deps-spin 0.8s linear infinite;
+}
+@keyframes deps-spin { to { transform: rotate(360deg); } }
+
 /* ── Tabs ────────────────────────────────────────────────────── */
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
 .tab {
@@ -483,3 +493,13 @@ body {
 .legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
 .legend-item { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 .legend-item .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+/* ── Dependency drawer key-value rows ────────────────────────── */
+.drawer-kv {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 12px; padding: 5px 0; border-bottom: 1px solid var(--border);
+  font-size: 12px; font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+.drawer-kv:last-child { border-bottom: none; }
+.drawer-kv > span:first-child { color: var(--muted); flex: none; }
+.drawer-kv > span:last-child { text-align: right; word-break: break-all; }

@@ -11,6 +11,7 @@ const { renderHtml } = require("./html-export.js");
 const { loadRules, checkRules } = require("./rules.js");
 const { computeImpact } = require("./impact.js");
 const { buildDeadCodeReport } = require("./deadcode.js");
+const { analyzeDeps } = require("./deps.js");
 
 const PUBLIC = path.join(__dirname, "..", "public");
 let PKG_VERSION = "0.0.0";
@@ -99,6 +100,18 @@ function startServer({ port, graph, root, maxDepth, watch = false }) {
       if (url.pathname === "/api/deadcode" && req.method === "GET") {
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify(buildDeadCodeReport(currentGraph)));
+        return;
+      }
+
+      if (url.pathname === "/api/deps" && req.method === "GET") {
+        try {
+          const result = await analyzeDeps(root, currentGraph);
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+          res.end(JSON.stringify(result));
+        } catch (e) {
+          res.writeHead(500, { "content-type": "application/json; charset=utf-8" });
+          res.end(JSON.stringify({ available: false, error: String(e && e.message ? e.message : e) }));
+        }
         return;
       }
 

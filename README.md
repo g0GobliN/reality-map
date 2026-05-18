@@ -58,7 +58,7 @@ Includes a **copy-ready README badge**:
 ![Health 87/100](https://img.shields.io/static/v1?label=health&message=87/100&color=brightgreen)
 ```
 
-### 🧹 Dead Code Detector _(new)_
+### 🧹 Dead Code Detector
 
 Finds files that are probably unused — scored by confidence, not just "0 importers":
 
@@ -66,6 +66,54 @@ Finds files that are probably unused — scored by confidence, not just "0 impor
 - Not an entry point, test, or config file
 - Confidence score based on multiple signals
 - Shows potential LOC savings
+
+### 📦 Dependency Intelligence _(new)_
+
+Full local analysis of your `package.json` — no registry upload, works offline after install.
+
+**Unused detection** — packages declared but never imported in source are flagged as `unused`. Packages only found in config files (`eslint.config.js`, `vite.config.ts`, etc.) are labelled `config-only` instead, which is a distinct and valid usage pattern.
+
+**Vulnerability scan** — runs `npm audit` locally and surfaces results grouped by severity: `critical` / `high` / `moderate` / `low`. Gracefully skips if `npm audit` is unavailable.
+
+**Outdated packages** — uses `npm outdated` to detect stale versions, then classifies the gap:
+- `outdated (major)` — breaking version behind, shown in amber
+- `outdated (minor)` — non-breaking feature behind, shown dim
+- `outdated (patch)` — safe bug-fix behind, low noise
+
+**Deprecated packages** — reads the `deprecated` field directly from `node_modules/[pkg]/package.json` — fully offline, no registry call needed.
+
+**Risk score (0–10)** — per-package score combining all signals:
+
+| Signal | Points |
+|---|---|
+| Critical vulnerability | +4 |
+| High vulnerability | +3 |
+| Moderate vulnerability | +2 |
+| Low vulnerability | +0.5 |
+| Deprecated | +2 |
+| Unused (runtime dep) | +1 |
+| Major version behind | +1.5 |
+| Minor version behind | +0.5 |
+
+**Overlapping ecosystem detection** — warns when multiple libraries serve the same purpose (e.g. `moment` + `date-fns` + `dayjs`), covering 10 ecosystem groups: date, HTTP client, state management, forms, CSS-in-JS, animation, validation, ORM, routing, and data-fetching.
+
+**Package detail drawer** — click any package to see: importing files, vulnerability details with links, installed vs latest version, risk score breakdown, and deprecation message.
+
+**CLI usage:**
+
+```bash
+# Print dep intelligence report to terminal
+npx reality-map --deps
+
+# Output as JSON (for CI / scripting)
+npx reality-map --deps-json
+
+# Exit 1 if any critical vulnerabilities found
+npx reality-map --deps --fail-on-vuln critical
+
+# Exit 1 if any high-or-above vulnerabilities found
+npx reality-map --deps --fail-on-vuln high
+```
 
 ### 📊 Insights Dashboard
 
@@ -104,6 +152,15 @@ npx reality-map --watch
 
 # Export snapshot as self-contained HTML
 npx reality-map --export snapshot.html
+
+# Dependency intelligence (terminal report)
+npx reality-map --deps
+
+# Dependency intelligence as JSON
+npx reality-map --deps-json
+
+# Fail CI if critical vulnerabilities found
+npx reality-map --deps --fail-on-vuln critical
 ```
 
 ---
@@ -149,6 +206,7 @@ The local server exposes a REST API you can use in scripts:
 | `/api/health`        | GET    | Health score (0–100)                                |
 | `/api/impact`        | POST   | Change impact — body: `{ "paths": ["src/foo.ts"] }` |
 | `/api/deadcode`      | GET    | Dead code candidates                                |
+| `/api/deps`          | GET    | Dependency intelligence — unused, vulns, outdated, risk scores |
 | `/api/search?q=`     | GET    | File search                                         |
 | `/api/file/:path`    | GET    | File symbols + imports                              |
 | `/api/rescan`        | POST   | Re-scan project                                     |
