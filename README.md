@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/img/git_logo.PNG" alt="RealityMap Logo" width="900" />
+  <img src="src/img/git_logo.PNG" alt="RealityMap Logo" width="420" />
   <strong>Visual architecture explorer for any JavaScript/TypeScript codebase. Zero config, zero upload, runs entirely local.</strong>
   <br/>
   <code>npx reality-map</code>
