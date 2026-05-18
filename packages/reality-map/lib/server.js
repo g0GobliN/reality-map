@@ -9,6 +9,8 @@ const { computeHealth } = require("./health.js");
 const { buildOrphanReport } = require("./orphans.js");
 const { renderHtml } = require("./html-export.js");
 const { loadRules, checkRules } = require("./rules.js");
+const { computeImpact } = require("./impact.js");
+const { buildDeadCodeReport } = require("./deadcode.js");
 
 const PUBLIC = path.join(__dirname, "..", "public");
 let PKG_VERSION = "0.0.0";
@@ -94,6 +96,31 @@ function startServer({ port, graph, root, maxDepth, watch = false }) {
         return;
       }
 
+      if (url.pathname === "/api/deadcode" && req.method === "GET") {
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify(buildDeadCodeReport(currentGraph)));
+        return;
+      }
+
+      if (url.pathname === "/api/impact" && req.method === "POST") {
+        try {
+          const body = await readBody(req);
+          const j = JSON.parse(body || "{}");
+          const paths = Array.isArray(j.paths) ? j.paths : (j.path ? [j.path] : []);
+          if (!paths.length) {
+            res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: "paths array required" }));
+            return;
+          }
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+          res.end(JSON.stringify(computeImpact(currentGraph, paths)));
+        } catch (e) {
+          res.writeHead(500, { "content-type": "application/json; charset=utf-8" });
+          res.end(JSON.stringify({ error: String(e && e.message ? e.message : e) }));
+        }
+        return;
+      }
+
       if (url.pathname === "/api/orphans" && req.method === "GET") {
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify(buildOrphanReport(currentGraph)));
@@ -118,6 +145,65 @@ function startServer({ port, graph, root, maxDepth, watch = false }) {
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ q, results: out }));
         return;
+      }
+
+      if (url.pathname.startsWith("/api/file/") && req.method === "GET") {
+        const filePath = decodeURIComponent(url.pathname.slice(10));
+        const details = currentGraph.fileDetails || {};
+        const imports = details.imports?.[filePath] || { specs: [], details: [] };
+        const symbols = details.symbols?.[filePath] || [];
+        const loc = details.loc?.[filePath] || 0;
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ path: filePath, imports, symbols, loc }));
+        return;
+      }
+
+      if (url.pathname.startsWith("/api/module/") && req.method === "GET") {
+        const parts = url.pathname.split("/");
+        if (parts.length >= 4 && parts[3] === "files") {
+          const moduleId = decodeURIComponent(parts[2]);
+          const depth = Number(url.searchParams.get("depth") || 1);
+          const graph = currentGraph.graphsByDepth?.[depth] || currentGraph;
+          const node = graph.nodes?.find((n) => n.id === moduleId);
+          if (!node) {
+            res.writeHead(404, { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: "module not found" }));
+            return;
+          }
+          const files = (node.pathsPreview || []).map((p) => {
+            const details = currentGraph.fileDetails || {};
+            return {
+              path: p,
+              symbols: details.symbols?.[p] || [],
+              loc: details.loc?.[p] || 0,
+            };
+          });
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+          res.end(JSON.stringify({ module: moduleId, files }));
+          return;
+        }
+      }
+
+      if (url.pathname.startsWith("/api/trace/") && req.method === "GET") {
+        const parts = url.pathname.split("/").slice(3);
+        if (parts.length >= 2) {
+          const from = decodeURIComponent(parts[0]);
+          const to = decodeURIComponent(parts[1]);
+          const details = currentGraph.fileDetails || {};
+          const fromImports = details.imports?.[from];
+          if (!fromImports) {
+            res.writeHead(404, { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: "source file not found" }));
+            return;
+          }
+          const trace = fromImports.details?.filter((imp) => {
+            const resolved = imp.spec;
+            return resolved.includes(to) || to.includes(resolved);
+          }) || [];
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+          res.end(JSON.stringify({ from, to, imports: trace }));
+          return;
+        }
       }
 
       let file = url.pathname === "/" ? "/index.html" : url.pathname;

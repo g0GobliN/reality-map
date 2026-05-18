@@ -1,117 +1,187 @@
 # reality-map
 
-Visual architecture explorer for AI-generated and fast-growing codebases.
-Run locally — your code never leaves your machine.
+**Visual architecture explorer for any JavaScript/TypeScript codebase. Zero config, zero upload, runs entirely local.**
+
+> By [Vishal Gurung](https://github.com/g0GobliN) · [@g0GobliN](https://github.com/g0GobliN)
 
 ```bash
 npx reality-map
 ```
 
-Then open the dashboard that appears at `http://localhost:4317` (or the URL printed in your terminal).
+Opens an interactive dependency map in your browser in seconds.
+
+---
 
 ## What it does
 
-- Walks your repo and parses `import` / `require` / dynamic `import()` statements
-- Groups files into modules by folder depth (`src/…`, `app/…`, or top-level)
-- **Map** — interactive, draggable graph of module dependencies, pan/zoom, edge tooltips (import counts)
-- **Insights** — largest files, most-imported files, coupling hubs, files with no internal importers (possible entry/unused), summary chips (edges, external refs, isolated files)
-- **Files** — searchable table of every scanned file with LOC and internal in/out degree (top 6000 by LOC in huge repos)
-- **Module sidebar** — filter, sort (LOC / name / fan-in / fan-out), depth selector, selected-module detail with sample paths
-- **Cycles** — lists circular dependency chains; cycle nodes highlighted on the graph
-- **Top packages** — most referenced `node_modules` specifiers
-- **Export** — download the full scan JSON from the dashboard
-- **Rescan** — `POST /api/rescan` from the UI (or **R** shortcut) re-runs the scanner without restarting the CLI
-- **`--watch`** — filesystem watcher rescans on save; the dashboard auto-syncs when the graph changes
+Most codebases grow faster than anyone can understand them. `reality-map` gives you an instant visual overview — modules, dependencies, cycles, coupling hubs — and lets you drill all the way down to individual files and functions.
 
-No upload, no telemetry, no account.
+![reality-map screenshot](https://raw.githubusercontent.com/g0GobliN/reality-map/main/public/screenshot.png)
+
+---
+
+## Features
+
+### 🗺 Interactive Dependency Map
+- Module-level graph with configurable depth (1–5)
+- Click any module to drill in — see sub-modules, then files, then symbols
+- Drag nodes to rearrange, pan and zoom freely
+- Animated edges show import direction and weight
+- Cycle detection — circular dependencies highlighted in red
+
+### 🔍 Deep File Exploration
+- Click any module at max depth → side drawer opens with all files
+- See every function, class, interface, and type with line numbers
+- Full import list with exact line numbers and import statements
+- Search symbols inside any file instantly
+- Breadcrumb navigation — go back up the drill-down path
+
+### 💥 Change Impact Analysis *(new)*
+Enter any file paths → instantly see:
+- Every file that could break (direct + transitive)
+- Risk score per affected file (1–10)
+- Module-level blast radius summary
+- Color-coded: high / medium / low risk
+
+### 🏥 Codebase Health Score *(new)*
+A single 0–100 score with letter grade (A–F) based on:
+- Circular dependency count
+- Isolated file ratio
+- Oversized files (>500 LOC)
+- Highly-coupled hubs
+
+Includes a **copy-ready README badge**:
+```
+![Health 87/100](https://img.shields.io/badge/health-87%2F100-brightgreen)
+```
+
+### 🧹 Dead Code Detector *(new)*
+Finds files that are probably unused — scored by confidence, not just "0 importers":
+- No internal importers
+- Not an entry point, test, or config file
+- Confidence score based on multiple signals
+- Shows potential LOC savings
+
+### 📊 Insights Dashboard
+- Largest files by LOC
+- Most imported files (your critical shared code)
+- Coupling hubs (high fan-in AND fan-out)
+- Files with no internal importers (potential entry points or dead code)
+
+### 🔎 Global Search
+`Ctrl+K` — fuzzy search across all files, jump directly to any file's detail view.
+
+### 📦 Minimap
+Always-visible overview of the full graph while you're zoomed in.
+
+---
 
 ## Usage
 
 ```bash
-npx reality-map [path] [options]
+# Scan current directory
+npx reality-map
 
-  -p, --port <n>   Port (default 4317; tries the next ports if busy)
-  -d, --depth <n>  Module grouping depth, 1–5 (default 3)
-  -w, --watch      Rescan when files under the project change (auto-refresh UI)
-      --no-open    Don't open the browser
-  -q, --quiet      Print only the dashboard URL (good for scripts)
-      --json, --stdout
-                   Print the full scan JSON to stdout and exit (no HTTP server; stdout is only JSON)
-      --export <file>
-                   Write the full scan JSON to a file and exit (no HTTP server)
-      --no-serve, --print-only
-                   Scan and print the usual summary, then exit (no server; combine with --export to write JSON)
-      --include-ext <ext[,ext…]>
-                   Extra extensions to include (leading dot optional), e.g. `.json,.md`
-      --fail-on-cycles
-                   Exit with code 1 if any depth view reports module dependency cycles
-      --fail-if-isolated
-                   Exit with code 1 if “isolated” internal-only files exceed budget (default 0)
-      --isolated-budget <n>
-                   Allow up to `<n>` isolated files (implies `--fail-if-isolated`; fail if count > `n`)
-      --summary-json
-                   One compact JSON line of key metrics (stdout; no full scan dump)
-      --list-files   All scanned relative paths, one per line on stdout (no banner or progress lines)
-      --export-dot <file>
-                   Graphviz DOT for the module graph at `--graph-depth` (default 1)
-      --export-mermaid <file>
-                   Mermaid `flowchart` for the same graph slice
-      --graph-depth <n>
-                   Slice depth for DOT/Mermaid exports (1–5; clamped to scan `--depth`)
-  -h, --help       Show help
-  -V, --version    Print package version
+# Scan a specific project
+npx reality-map /path/to/project
+
+# Custom port
+npx reality-map --port 4000
+
+# Custom depth (1-5, default 3)
+npx reality-map --depth 4
+
+# Watch mode (auto-refresh on file changes)
+npx reality-map --watch
+
+# Export snapshot as self-contained HTML
+npx reality-map --export snapshot.html
 ```
 
-While it runs you get short progress lines (discover files → parse imports → build depth views), then **Ctrl+C** stops the server cleanly.
+---
 
-### CI / scripting
+## Supported languages
 
-```bash
-# Machine-readable graph on stdout (pipe to jq, files, etc.)
-npx reality-map --json .
+| Language | Extensions |
+|---|---|
+| JavaScript | `.js` `.mjs` `.cjs` |
+| TypeScript | `.ts` `.tsx` `.mts` `.cts` |
+| JSX | `.jsx` |
+| Vue | `.vue` |
+| Svelte | `.svelte` |
+| Astro | `.astro` |
 
-# Write scan JSON for another tool; no server
-npx reality-map --export scan.json .
+---
 
-# Fail CI if any depth view reports module cycles (stderr JSON on failure)
-npx reality-map --fail-on-cycles --print-only .
+## Ignore files
 
-# One-line metrics for dashboards / jq (no full graph JSON)
-npx reality-map --summary-json .
+Create a `.realitymapignore` file in your project root (same syntax as `.gitignore`):
 
-# Paths only (pipe to xargs, ripgrep --files-from, etc.)
-npx reality-map --list-files .
+```
+# Ignore generated files
+src/generated/
+*.generated.ts
 
-# Graphviz + Mermaid for docs / CI artifacts
-npx reality-map --export-dot graph.dot --export-mermaid graph.mmd --graph-depth 1 .
-
-# Fail if more than 3 fully-isolated internal files
-npx reality-map --isolated-budget 3 --print-only .
+# Ignore specific directories
+legacy/
 ```
 
-When **`--fail-on-cycles`** triggers, the process exits **1** and **does not** write `--export` output or print `--json` (only the stderr error payload). The same applies to **`--fail-if-isolated`** / **`EISOLATED`**.
+---
 
-On failure, the CLI prints a **single JSON object** to stderr with `"type":"reality-map-error"`, a `code` string (for example `EROOT`, `ENOTDIR`, `SCAN_FAILED`, **`ECYCLES`**, **`EISOLATED`**), and a `message`, then exits non-zero. A human-readable line is printed after it for local debugging.
+## API endpoints
 
-### `.realitymapignore`
+The local server exposes a REST API you can use in scripts:
 
-Optional file at the project root. One pattern per line; `#` starts a comment; blank lines ignored. Paths are **relative to the project root** with `/` as the separator.
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/graph` | GET | Full scan data |
+| `/api/health` | GET | Health score (0–100) |
+| `/api/impact` | POST | Change impact — body: `{ "paths": ["src/foo.ts"] }` |
+| `/api/deadcode` | GET | Dead code candidates |
+| `/api/search?q=` | GET | File search |
+| `/api/file/:path` | GET | File symbols + imports |
+| `/api/rescan` | POST | Re-scan project |
+| `/api/snapshot.html` | GET | Download self-contained HTML snapshot |
 
-- **Prefix / subtree:** a line without `*` or `?` matches that path or anything under it (`legacy` matches `legacy/foo.ts`; a trailing `/` is optional).
-- **Glob (one segment):** `*` matches characters within one path segment (not `/`); `?` matches a single character in that segment.
+---
 
-This is **not** a full `.gitignore` engine (no negation, `**`, or anchored-root rules).
+## How the health score works
 
-Full scan JSON (from `--json` / `--export`) includes a **`scannedFilePaths`** array (every included source file, relative paths, sorted).
+| Factor | Max penalty |
+|---|---|
+| Circular dependencies | −30 pts |
+| High isolated file ratio (>5%) | −20 pts |
+| Files over 500 LOC | −15 pts |
+| Highly-coupled hubs (in≥8, out≥5) | −15 pts |
 
-## Supported files
+Grade scale: A (90–100) · B (80–89) · C (70–79) · D (60–69) · F (<60)
 
-`.js .jsx .ts .tsx .mjs .cjs .mts .cts .vue .svelte .astro`
+---
 
-Use `--include-ext` to scan additional extensions (comma-separated).
+## How change impact works
 
-Skips: `node_modules`, `dist`, `build`, `.git`, `.next`, `.cache`, etc. Additional paths can be excluded with `.realitymapignore` (see above).
+Given a list of changed files, `reality-map` does a reverse BFS through the import graph:
+
+1. Finds all files that directly import the changed files (depth 1)
+2. Finds all files that import those (depth 2, 3, …)
+3. Scores each affected file by proximity to the change + file size + importer count
+4. Groups results by module for a high-level blast radius view
+
+---
+
+## Requirements
+
+- Node.js 18+
+- No other dependencies — zero npm install needed in your project
+
+---
+
+## Privacy
+
+Everything runs locally. No files, paths, or code are ever uploaded anywhere.
+
+---
 
 ## License
 
-MIT
+MIT © [Vishal Gurung](https://github.com/g0GobliN)

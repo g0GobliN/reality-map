@@ -1,7 +1,8 @@
 {
   "name": "reality-map",
   "version": "0.6.0",
-  "description": "Visual architecture explorer for AI-generated codebases. Run locally — zero upload.",
+  "description": "Visual architecture explorer for any JavaScript/TypeScript codebase. Run locally — zero upload.",
+  "author": "Vishal Gurung <g0GobliN> (https://github.com/g0GobliN)",
   "bin": {
     "reality-map": "bin/cli.js"
   },
@@ -21,5 +22,13 @@
     "ast",
     "developer-tools"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/g0GobliN/reality-map"
+  },
+  "homepage": "https://github.com/g0GobliN/reality-map#readme",
+  "bugs": {
+    "url": "https://github.com/g0GobliN/reality-map/issues"
+  }
 }

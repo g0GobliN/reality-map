@@ -522,7 +522,7 @@ function EvolutionSection() {
               whileInView={{ height: `${(v / max) * 100}%`, opacity: 1 }}
               viewport={{ once: true }}
               transition={{ duration: 0.6, delay: i * 0.05 }}
-              className="relative w-full rounded-md bg-gradient-to-t from-cyan/30 to-violet/60 ring-1 ring-border"
+              className="relative w-full rounded-md bg-linear-to-t from-cyan/30 to-violet/60 ring-1 ring-border"
               style={{
                 filter: i >= 7 ? "drop-shadow(0 0 12px oklch(0.72 0.19 295 / 0.45))" : undefined,
               }}

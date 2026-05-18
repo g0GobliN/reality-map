@@ -2,6 +2,7 @@
 (async function () {
   const TONE = { cyan: "#67e8f9", violet: "#a78bfa", emerald: "#6ee7b7", amber: "#fbbf24", rose: "#fb7185" };
 
+  // ── DOM refs ──────────────────────────────────────────────────
   const svg = document.getElementById("canvas");
   const stats = document.getElementById("stats");
   const metaRoot = document.getElementById("meta-root");
@@ -18,7 +19,20 @@
   const viewInsights = document.getElementById("view-insights");
   const viewFiles = document.getElementById("view-files");
   const fileFilter = document.getElementById("file-filter");
+  const globalSearch = document.getElementById("global-search");
+  const globalSearchResults = document.getElementById("global-search-results");
+  const fileDrawer = document.getElementById("file-drawer");
+  const drawerTitle = document.getElementById("drawer-title");
+  const drawerMeta = document.getElementById("drawer-meta");
+  const drawerClose = document.getElementById("drawer-close");
+  const drawerFiles = document.getElementById("drawer-files");
+  const drawerSymbols = document.getElementById("drawer-symbols");
+  const drawerImports = document.getElementById("drawer-imports");
+  const symbolSearch = document.getElementById("symbol-search");
+  const edgeTooltip = document.getElementById("edge-tooltip");
+  const layout = document.getElementById("view-map");
 
+  // ── State ─────────────────────────────────────────────────────
   let meta = await fetch("/api/meta").then((r) => r.json());
   metaRoot.textContent = meta.root;
   const verEl = document.getElementById("meta-version");
@@ -34,7 +48,11 @@
   let view = { x: 0, y: 0, k: 1, depth: 1, prefix: null };
   let currentViewGraph = null;
   let activeTab = "map";
+  let drawerData = null; // { type: 'module'|'file', id }
+  let allSymbols = []; // for symbol search filtering
 
+
+  // ── Depth select ──────────────────────────────────────────────
   function fillDepthSelect() {
     depthSelect.innerHTML = "";
     for (let d = 1; d <= maxDepth; d++) {
@@ -58,6 +76,7 @@
   moduleSort.addEventListener("change", () => render());
   moduleFilter.addEventListener("input", () => render());
 
+  // ── Tabs ──────────────────────────────────────────────────────
   function setTab(tab) {
     activeTab = tab;
     document.querySelectorAll("#main-tabs .tab").forEach((b) => {
@@ -66,8 +85,13 @@
     viewMap.hidden = tab !== "map";
     viewInsights.hidden = tab !== "insights";
     viewFiles.hidden = tab !== "files";
+    document.getElementById("view-health").hidden = tab !== "health";
+    document.getElementById("view-impact").hidden = tab !== "impact";
+    document.getElementById("view-deadcode").hidden = tab !== "deadcode";
     if (tab === "insights") renderInsights();
     if (tab === "files") renderFilesTable();
+    if (tab === "health") renderHealth();
+    if (tab === "deadcode") renderDeadCode();
   }
 
   document.getElementById("main-tabs").addEventListener("click", (e) => {
@@ -76,6 +100,7 @@
     setTab(btn.dataset.tab);
   });
 
+  // ── Back button ───────────────────────────────────────────────
   function setBackButton() {
     if (!backBtn) return;
     const canGoBack = stack.length > 0;
@@ -84,6 +109,7 @@
     backBtn.style.cursor = canGoBack ? "pointer" : "not-allowed";
   }
 
+  // ── Graph helpers ─────────────────────────────────────────────
   function getDepthGraph(depth) {
     return graphsByDepth[depth] || graphsByDepth[1] || scan;
   }
@@ -91,29 +117,259 @@
   function computeViewGraph() {
     const depthGraph = getDepthGraph(view.depth);
     if (!view.prefix) return depthGraph;
-
     const prefix = view.prefix;
     const nodes = depthGraph.nodes.filter((n) => n.id === prefix || n.id.startsWith(prefix + "/"));
     const nodeSet = new Set(nodes.map((n) => n.id));
     const edges = depthGraph.edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target));
     const cycles = depthGraph.cycles.filter((cy) => cy.every((n) => nodeSet.has(n)));
-
     const loc = nodes.reduce((a, n) => a + (n.loc || 0), 0);
     return {
-      ...depthGraph,
-      nodes,
-      edges,
-      cycles,
-      stats: {
-        ...(depthGraph.stats || {}),
-        modules: nodes.length,
-        edges: edges.length,
-        cycles: cycles.length,
-        loc,
-      },
+      ...depthGraph, nodes, edges, cycles,
+      stats: { ...(depthGraph.stats || {}), modules: nodes.length, edges: edges.length, cycles: cycles.length, loc },
     };
   }
 
+
+  // ── File Drawer ───────────────────────────────────────────────
+  // Breadcrumb stack: [{type, id, label}]
+  let drawerStack = [];
+
+  function openDrawer() {
+    fileDrawer.hidden = false;
+    layout.classList.add("drawer-open");
+  }
+  function closeDrawer() {
+    fileDrawer.hidden = true;
+    layout.classList.remove("drawer-open");
+    drawerData = null;
+    allSymbols = [];
+    drawerStack = [];
+    renderDrawerBreadcrumb();
+  }
+  drawerClose.addEventListener("click", closeDrawer);
+
+  function renderDrawerBreadcrumb() {
+    const bc = document.getElementById("drawer-breadcrumb");
+    if (!bc) return;
+    if (drawerStack.length === 0) { bc.hidden = true; return; }
+    bc.hidden = false;
+    bc.innerHTML = "";
+    drawerStack.forEach((entry, i) => {
+      const btn = document.createElement("button");
+      btn.className = "bc-btn";
+      btn.textContent = entry.label;
+      btn.addEventListener("click", () => {
+        drawerStack = drawerStack.slice(0, i);
+        if (entry.type === "module") showModuleDrawer(entry.id, false);
+        else showFileDrawer(entry.id, false);
+      });
+      bc.appendChild(btn);
+      const sep = document.createElement("span");
+      sep.className = "bc-sep";
+      sep.textContent = "›";
+      bc.appendChild(sep);
+    });
+    const cur = document.createElement("span");
+    cur.className = "bc-cur";
+    cur.textContent = drawerData ? drawerData.id.split("/").pop() : "";
+    bc.appendChild(cur);
+  }
+
+  async function showModuleDrawer(moduleId, pushToStack = true) {
+    if (pushToStack && drawerData) {
+      drawerStack.push({ type: drawerData.type, id: drawerData.id, label: drawerData.id.split("/").pop() });
+    }
+    drawerData = { type: "module", id: moduleId };
+    const depth = view.depth;
+    const graph = getDepthGraph(depth);
+    const node = graph.nodes.find((n) => n.id === moduleId);
+    if (!node) return;
+
+    drawerTitle.textContent = moduleId;
+    drawerMeta.textContent = `${node.files} files · ${node.loc} loc · fan-in ${node.fanIn ?? 0} · fan-out ${node.fanOut ?? 0}`;
+    drawerSymbols.innerHTML = "";
+    drawerImports.innerHTML = "";
+    symbolSearch.value = "";
+    renderDrawerBreadcrumb();
+
+    // Fetch file list for this module
+    let filesData = { files: [] };
+    try {
+      filesData = await fetch(`/api/module/${encodeURIComponent(moduleId)}/files?depth=${depth}`).then((r) => r.json());
+    } catch {}
+
+    // Build file list
+    drawerFiles.innerHTML = `<h4>Files in module</h4>`;
+    const fileListEl = document.createElement("div");
+    fileListEl.className = "file-list";
+
+    const allPaths = node.pathsPreview || [];
+    allPaths.forEach((p) => {
+      const fd = filesData.files?.find((f) => f.path === p) || {};
+      const item = document.createElement("div");
+      item.className = "file-item";
+      item.innerHTML = `<span class="fi-dot"></span><span class="fi-path" title="${p}">${p}</span><span class="fi-meta">${fd.loc || "?"} loc · ${(fd.symbols || []).length} sym</span>`;
+      item.addEventListener("click", () => showFileDrawer(p));
+      fileListEl.appendChild(item);
+    });
+    if (node.files > allPaths.length) {
+      const more = document.createElement("div");
+      more.className = "fi-meta dim";
+      more.style.padding = "4px 8px";
+      more.textContent = `+ ${node.files - allPaths.length} more files`;
+      fileListEl.appendChild(more);
+    }
+    drawerFiles.appendChild(fileListEl);
+    openDrawer();
+  }
+
+  async function showFileDrawer(filePath, pushToStack = true) {
+    if (pushToStack && drawerData) {
+      drawerStack.push({ type: drawerData.type, id: drawerData.id, label: drawerData.id.split("/").pop() });
+    }
+    drawerData = { type: "file", id: filePath };
+    let data = { path: filePath, imports: { specs: [], details: [] }, symbols: [], loc: 0 };
+    try {
+      data = await fetch(`/api/file/${encodeURIComponent(filePath)}`).then((r) => r.json());
+    } catch {}
+
+    drawerTitle.textContent = filePath;
+    drawerMeta.textContent = `${data.loc} lines · ${data.symbols.length} symbols · ${data.imports.specs.length} imports`;
+    drawerFiles.innerHTML = "";
+    symbolSearch.value = "";
+    allSymbols = data.symbols || [];
+    renderDrawerBreadcrumb();
+
+    renderSymbols(allSymbols);
+    renderImports(data.imports.details || []);
+    openDrawer();
+  }
+
+  function renderSymbols(symbols) {
+    drawerSymbols.innerHTML = `<h4>Symbols (${symbols.length})</h4>`;
+    if (!symbols.length) {
+      drawerSymbols.innerHTML += `<div class="dim" style="font-size:11px;padding:4px 8px">No symbols found</div>`;
+      return;
+    }
+    const list = document.createElement("div");
+    list.className = "sym-list";
+    symbols.forEach((s) => {
+      const item = document.createElement("div");
+      item.className = "sym-item";
+      const badgeClass = s.type === "function" ? "fn" : s.type === "class" ? "cls" : s.type === "interface" ? "iface" : "type";
+      const badgeLabel = s.type === "function" ? "fn" : s.type === "class" ? "cls" : s.type === "interface" ? "if" : "T";
+      item.innerHTML = `<span class="sym-badge ${badgeClass}">${badgeLabel}</span><span class="sym-name">${s.name}</span><span class="sym-line">L${s.line}</span>`;
+      list.appendChild(item);
+    });
+    drawerSymbols.appendChild(list);
+  }
+
+  function renderImports(details) {
+    drawerImports.innerHTML = `<h4>Imports (${details.length})</h4>`;
+    if (!details.length) {
+      drawerImports.innerHTML += `<div class="dim" style="font-size:11px;padding:4px 8px">No imports</div>`;
+      return;
+    }
+    const list = document.createElement("div");
+    list.className = "imp-list";
+    details.forEach((imp) => {
+      const item = document.createElement("div");
+      item.className = "imp-item";
+      item.innerHTML = `<div class="imp-spec">${imp.spec}</div><div class="imp-line">L${imp.line} · <span style="color:var(--muted)">${imp.statement.slice(0, 60)}${imp.statement.length > 60 ? "…" : ""}</span></div>`;
+      list.appendChild(item);
+    });
+    drawerImports.appendChild(list);
+  }
+
+  // Symbol search filter
+  symbolSearch.addEventListener("input", () => {
+    const q = symbolSearch.value.trim().toLowerCase();
+    const filtered = q ? allSymbols.filter((s) => s.name.toLowerCase().includes(q)) : allSymbols;
+    renderSymbols(filtered);
+  });
+
+
+  // ── Global search (Ctrl+K / /) ────────────────────────────────
+  let searchIdx = -1;
+  let searchResults = [];
+
+  function showSearchResults(results) {
+    searchResults = results;
+    searchIdx = -1;
+    globalSearchResults.innerHTML = "";
+    if (!results.length) {
+      globalSearchResults.innerHTML = `<div class="sd-empty">No results</div>`;
+      globalSearchResults.hidden = false;
+      return;
+    }
+    results.forEach((r, i) => {
+      const item = document.createElement("div");
+      item.className = "sd-item";
+      item.dataset.idx = String(i);
+      item.innerHTML = `<span class="sd-path">${r.path}</span><span class="sd-meta">${r.ext} · ${r.loc} loc · ${r.importers} importers</span>`;
+      item.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        selectSearchResult(r);
+      });
+      globalSearchResults.appendChild(item);
+    });
+    globalSearchResults.hidden = false;
+  }
+
+  function selectSearchResult(r) {
+    globalSearch.value = "";
+    globalSearchResults.hidden = true;
+    globalSearch.blur();
+    showFileDrawer(r.path);
+  }
+
+  function updateSearchHighlight() {
+    globalSearchResults.querySelectorAll(".sd-item").forEach((el, i) => {
+      el.classList.toggle("active", i === searchIdx);
+    });
+  }
+
+  globalSearch.addEventListener("input", async () => {
+    const q = globalSearch.value.trim();
+    if (!q) { globalSearchResults.hidden = true; return; }
+    try {
+      const data = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=30`).then((r) => r.json());
+      showSearchResults(data.results || []);
+    } catch {}
+  });
+
+  globalSearch.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      searchIdx = Math.min(searchIdx + 1, searchResults.length - 1);
+      updateSearchHighlight();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      searchIdx = Math.max(searchIdx - 1, 0);
+      updateSearchHighlight();
+    } else if (e.key === "Enter") {
+      if (searchIdx >= 0 && searchResults[searchIdx]) selectSearchResult(searchResults[searchIdx]);
+      else if (searchResults[0]) selectSearchResult(searchResults[0]);
+    } else if (e.key === "Escape") {
+      globalSearchResults.hidden = true;
+      globalSearch.blur();
+    }
+  });
+
+  globalSearch.addEventListener("blur", () => {
+    setTimeout(() => { globalSearchResults.hidden = true; }, 150);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      e.preventDefault();
+      globalSearch.focus();
+      globalSearch.select();
+    }
+  });
+
+
+  // ── Module click: drill-in or open drawer at max depth ────────
   function onModuleClick(moduleId) {
     if (view.depth < maxDepth) {
       stack.push({ prefix: view.prefix, depth: view.depth });
@@ -124,9 +380,16 @@
       render();
       return;
     }
-
-    selected = selected === moduleId ? null : moduleId;
-    render();
+    // At max depth: toggle selection + open drawer
+    if (selected === moduleId) {
+      selected = null;
+      closeDrawer();
+      render();
+    } else {
+      selected = moduleId;
+      render();
+      showModuleDrawer(moduleId);
+    }
   }
 
   function filterModules(nodes) {
@@ -148,15 +411,12 @@
   function updateDetailPanel(graph) {
     if (!detailPanel) return;
     if (!selected) {
-      detailPanel.textContent = "Click a module for fan-in/out and sample paths.";
+      detailPanel.textContent = "Click a module for details. Double-click to drill in.";
       detailPanel.className = "detail mono dim";
       return;
     }
     const n = graph.nodes.find((x) => x.id === selected);
-    if (!n) {
-      detailPanel.textContent = "—";
-      return;
-    }
+    if (!n) { detailPanel.textContent = "—"; return; }
     const lines = [
       n.label,
       "fan-in " + (n.fanIn ?? 0) + " · fan-out " + (n.fanOut ?? 0),
@@ -168,6 +428,8 @@
     detailPanel.className = "detail mono";
   }
 
+
+  // ── SVG helpers ───────────────────────────────────────────────
   const NS = "http://www.w3.org/2000/svg";
   function el(name, attrs = {}, children = []) {
     const e = document.createElementNS(NS, name);
@@ -175,6 +437,9 @@
     children.forEach((c) => e.appendChild(c));
     return e;
   }
+
+  // ── Render sidebar + canvas ───────────────────────────────────
+  let lastFitKey = "";
 
   function render() {
     currentViewGraph = computeViewGraph();
@@ -221,10 +486,18 @@
 
     updateDetailPanel(graph);
     setBackButton();
-    fit(graph);
+
+    // Only re-fit when the graph structure changes (depth or prefix), not on selection clicks
+    const fitKey = `${view.depth}:${view.prefix || ""}:${graph.nodes.length}`;
+    if (fitKey !== lastFitKey) {
+      lastFitKey = fitKey;
+      fit(graph);
+    }
     draw(graph);
   }
 
+
+  // ── Insights & Files tabs ─────────────────────────────────────
   function fillTable(tbody, rows, cols) {
     tbody.innerHTML = "";
     rows.forEach((r) => {
@@ -253,68 +526,59 @@
       chip(s.uniquePackages + " packages"),
       chip(s.isolatedInternalFiles + " isolated files"),
     ].join("");
+    fillTable(document.querySelector("#tbl-top-loc tbody"), ins.topFilesByLoc || [], ["path", "loc"]);
+    fillTable(document.querySelector("#tbl-imported tbody"), ins.topImported || [], ["path", "count", "loc"]);
+    fillTable(document.querySelector("#tbl-hubs tbody"), ins.hubs || [], ["path", "in", "out", "score"]);
+    fillTable(document.querySelector("#tbl-zero tbody"), ins.zeroInternalImporters || [], ["path", "loc", "internalExports"]);
 
-    fillTable(
-      document.querySelector("#tbl-top-loc tbody"),
-      ins.topFilesByLoc || [],
-      ["path", "loc"],
-    );
-    fillTable(
-      document.querySelector("#tbl-imported tbody"),
-      ins.topImported || [],
-      ["path", "count", "loc"],
-    );
-    fillTable(
-      document.querySelector("#tbl-hubs tbody"),
-      ins.hubs || [],
-      ["path", "in", "out", "score"],
-    );
-    fillTable(
-      document.querySelector("#tbl-zero tbody"),
-      ins.zeroInternalImporters || [],
-      ["path", "loc", "internalExports"],
-    );
+    // Make insight table rows clickable → open file drawer
+    ["#tbl-top-loc", "#tbl-imported", "#tbl-hubs", "#tbl-zero"].forEach((sel) => {
+      const tbody = document.querySelector(sel + " tbody");
+      if (!tbody) return;
+      tbody.addEventListener("click", (e) => {
+        const tr = e.target.closest("tr");
+        if (!tr) return;
+        const pathCell = tr.querySelector("td");
+        if (pathCell) showFileDrawer(pathCell.textContent);
+      });
+    });
   }
 
-  function chip(t) {
-    return `<span class="chip">${t}</span>`;
-  }
+  function chip(t) { return `<span class="chip">${t}</span>`; }
 
   function renderFilesTable() {
     const ins = scan.insights;
     const hint = document.getElementById("files-trunc");
-    if (!ins || !ins.filesIndex) {
-      hint.textContent = "";
-      document.querySelector("#tbl-files tbody").innerHTML = "";
-      return;
-    }
+    if (!ins || !ins.filesIndex) { hint.textContent = ""; document.querySelector("#tbl-files tbody").innerHTML = ""; return; }
     hint.textContent = ins.filesIndexTruncated
       ? "Showing top " + ins.filesIndexCap + " files by LOC (truncated)."
       : "All scanned files listed.";
-
     const q = (fileFilter.value || "").trim().toLowerCase();
     const rows = q ? ins.filesIndex.filter((r) => r.path.toLowerCase().includes(q)) : ins.filesIndex;
-    fillTable(
-      document.querySelector("#tbl-files tbody"),
-      rows.slice(0, 800),
-      ["path", "ext", "loc", "importers", "importees"],
-    );
+    fillTable(document.querySelector("#tbl-files tbody"), rows.slice(0, 800), ["path", "ext", "loc", "importers", "importees"]);
+
+    // Make file rows clickable → open file drawer
+    const tbody = document.querySelector("#tbl-files tbody");
+    if (tbody) {
+      tbody.addEventListener("click", (e) => {
+        const tr = e.target.closest("tr");
+        if (!tr) return;
+        const pathCell = tr.querySelector("td");
+        if (pathCell) showFileDrawer(pathCell.textContent);
+      });
+    }
   }
 
-  fileFilter.addEventListener("input", () => {
-    if (activeTab === "files") renderFilesTable();
-  });
+  fileFilter.addEventListener("input", () => { if (activeTab === "files") renderFilesTable(); });
 
+
+  // ── Fit & Draw ────────────────────────────────────────────────
   function fit(graph) {
     if (!graph.nodes.length) return;
-    const xs = graph.nodes.map((n) => n.x),
-      ys = graph.nodes.map((n) => n.y);
-    const minX = Math.min(...xs) - 80,
-      maxX = Math.max(...xs) + 280;
-    const minY = Math.min(...ys) - 80,
-      maxY = Math.max(...ys) + 180;
-    const w = svg.clientWidth,
-      h = svg.clientHeight;
+    const xs = graph.nodes.map((n) => n.x), ys = graph.nodes.map((n) => n.y);
+    const minX = Math.min(...xs) - 80, maxX = Math.max(...xs) + 280;
+    const minY = Math.min(...ys) - 80, maxY = Math.max(...ys) + 180;
+    const w = svg.clientWidth, h = svg.clientHeight;
     const k = Math.min(w / (maxX - minX), h / (maxY - minY), 1.2);
     view.k = k;
     view.x = (w - (maxX - minX) * k) / 2 - minX * k;
@@ -335,11 +599,10 @@
     `;
     svg.appendChild(defs);
 
-    const root = el("g", { transform: `translate(${view.x} ${view.y}) scale(${view.k})` });
-    svg.appendChild(root);
+    const rootG = el("g", { transform: `translate(${view.x} ${view.y}) scale(${view.k})` });
+    svg.appendChild(rootG);
 
-    const NW = 220,
-      NH = 70;
+    const NW = 220, NH = 70;
     const byId = new Map(graph.nodes.map((n) => [n.id, n]));
     const incidentToSelected = new Set();
     if (selected) {
@@ -350,32 +613,42 @@
 
     const edgesG = el("g");
     graph.edges.forEach((e) => {
-      const a = byId.get(e.source),
-        b = byId.get(e.target);
+      const a = byId.get(e.source), b = byId.get(e.target);
       if (!a || !b) return;
-      const x1 = a.x + NW,
-        y1 = a.y + NH / 2;
-      const x2 = b.x,
-        y2 = b.y + NH / 2;
+      const x1 = a.x + NW, y1 = a.y + NH / 2;
+      const x2 = b.x, y2 = b.y + NH / 2;
       const cx = (x1 + x2) / 2;
       const d = `M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`;
       const cls = ["edge"];
       if (a.warn || b.warn) cls.push("warn");
-      if (e.weight >= 3) cls.push("hot", "animated");
-      else cls.push("animated");
+      if (e.weight >= 3) cls.push("hot", "animated"); else cls.push("animated");
       if (selected && !incidentToSelected.has(e.id)) cls.push("dim");
-      const path = el("path", {
-        d,
-        class: cls.join(" "),
+      const pathEl = el("path", {
+        d, class: cls.join(" "),
         "marker-end": "url(#arrow)",
         style: `color:${(a.warn || b.warn) ? TONE.rose : TONE.cyan}; stroke:${(a.warn || b.warn) ? TONE.rose : TONE.cyan}`,
       });
+      // Edge tooltip on hover
+      pathEl.addEventListener("mouseenter", (ev) => {
+        showEdgeTooltip(ev, e, a, b);
+      });
+      pathEl.addEventListener("mousemove", (ev) => {
+        positionEdgeTooltip(ev);
+      });
+      pathEl.addEventListener("mouseleave", () => {
+        edgeTooltip.hidden = true;
+      });
+      // Click edge to show import details
+      pathEl.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        showEdgeDetails(e, a, b);
+      });
       const tEl = el("title");
-      tEl.textContent = (e.weight || 1) + " import edge(s)";
-      path.appendChild(tEl);
-      edgesG.appendChild(path);
+      tEl.textContent = (e.weight || 1) + " import edge(s): " + e.source + " → " + e.target;
+      pathEl.appendChild(tEl);
+      edgesG.appendChild(pathEl);
     });
-    root.appendChild(edgesG);
+    rootG.appendChild(edgesG);
 
     const barMax = Math.max(...graph.nodes.map((m) => m.loc), 1);
 
@@ -385,38 +658,12 @@
       g.dataset.moved = "0";
 
       const accentColor = TONE[n.tone] || TONE.cyan;
-      const dimmed =
-        selected &&
-        selected !== n.id &&
-        !graph.edges.some(
-          (e) =>
-            (e.source === selected && e.target === n.id) || (e.target === selected && e.source === n.id),
-        );
+      const dimmed = selected && selected !== n.id &&
+        !graph.edges.some((e) => (e.source === selected && e.target === n.id) || (e.target === selected && e.source === n.id));
       g.setAttribute("opacity", dimmed ? "0.35" : "1");
 
-      g.appendChild(
-        el("rect", {
-          class: "node-card",
-          x: 0,
-          y: 0,
-          width: NW,
-          height: NH,
-          rx: 12,
-          stroke: accentColor,
-          "stroke-opacity": 0.5,
-        }),
-      );
-      g.appendChild(
-        el("rect", {
-          class: "accent",
-          x: 0,
-          y: 0,
-          width: 4,
-          height: NH,
-          rx: 2,
-          fill: accentColor,
-        }),
-      );
+      g.appendChild(el("rect", { class: "node-card", x: 0, y: 0, width: NW, height: NH, rx: 12, stroke: accentColor, "stroke-opacity": 0.5 }));
+      g.appendChild(el("rect", { class: "accent", x: 0, y: 0, width: 4, height: NH, rx: 2, fill: accentColor }));
 
       const label = el("text", { class: "node-label", x: 16, y: 28 });
       label.textContent = n.label.length > 24 ? n.label.slice(0, 22) + "…" : n.label;
@@ -428,66 +675,150 @@
 
       const wbar = Math.max(6, Math.round((n.loc / barMax) * (NW - 32)));
       g.appendChild(el("rect", { x: 16, y: 56, width: NW - 32, height: 3, rx: 2, fill: "rgba(255,255,255,0.06)" }));
-      g.appendChild(
-        el("rect", { x: 16, y: 56, width: wbar, height: 3, rx: 2, fill: accentColor, "fill-opacity": 0.7 }),
-      );
+      g.appendChild(el("rect", { x: 16, y: 56, width: wbar, height: 3, rx: 2, fill: accentColor, "fill-opacity": 0.7 }));
 
       if (n.warn) {
         const badge = el("g", { transform: `translate(${NW - 28} 12)` });
-        badge.appendChild(
-          el("circle", {
-            r: 9,
-            cx: 9,
-            cy: 9,
-            fill: TONE.rose,
-            "fill-opacity": 0.18,
-            stroke: TONE.rose,
-            "stroke-opacity": 0.6,
-          }),
-        );
-        const t = el("text", {
-          x: 9,
-          y: 13,
-          "text-anchor": "middle",
-          "font-size": 11,
-          fill: TONE.rose,
-          "font-weight": 700,
-        });
+        badge.appendChild(el("circle", { r: 9, cx: 9, cy: 9, fill: TONE.rose, "fill-opacity": 0.18, stroke: TONE.rose, "stroke-opacity": 0.6 }));
+        const t = el("text", { x: 9, y: 13, "text-anchor": "middle", "font-size": 11, fill: TONE.rose, "font-weight": 700 });
         t.textContent = "!";
         badge.appendChild(t);
         g.appendChild(badge);
       }
 
+      // "Explore" indicator at max depth
+      if (view.depth === maxDepth) {
+        const exploreHint = el("text", { x: NW - 10, y: 14, "text-anchor": "end", "font-size": 9, fill: accentColor, "fill-opacity": 0.6 });
+        exploreHint.textContent = "⊕";
+        g.appendChild(exploreHint);
+      }
+
       makeDraggable(g, n);
       g.addEventListener("click", (ev) => {
         ev.stopPropagation();
-        if (g.dataset.moved === "1") {
-          g.dataset.moved = "0";
-          return;
-        }
+        if (g.dataset.moved === "1") { g.dataset.moved = "0"; return; }
         onModuleClick(n.id);
       });
 
-      root.appendChild(g);
+      rootG.appendChild(g);
     });
+
+    drawMinimap(graph);
   }
 
+
+  // ── Edge tooltip ──────────────────────────────────────────────
+  function showEdgeTooltip(ev, edge, a, b) {
+    edgeTooltip.innerHTML = `
+      <div class="et-title">${edge.weight || 1} import(s)</div>
+      <div class="et-line">${a.id} → ${b.id}</div>
+    `;
+    edgeTooltip.hidden = false;
+    positionEdgeTooltip(ev);
+  }
+
+  function positionEdgeTooltip(ev) {
+    const rect = svg.getBoundingClientRect();
+    const x = ev.clientX - rect.left + 12;
+    const y = ev.clientY - rect.top - 10;
+    edgeTooltip.style.left = Math.min(x, rect.width - 300) + "px";
+    edgeTooltip.style.top = Math.max(0, y) + "px";
+  }
+
+  async function showEdgeDetails(edge, a, b) {
+    // Open drawer showing import details between two modules
+    if (drawerData) {
+      drawerStack.push({ type: drawerData.type, id: drawerData.id, label: drawerData.id.split("/").pop() });
+    }
+    drawerData = { type: "edge", id: `${a.id}→${b.id}` };
+    drawerTitle.textContent = `${a.id} → ${b.id}`;
+    drawerMeta.textContent = `${edge.weight || 1} import connection(s)`;
+    drawerFiles.innerHTML = `<h4>Connection</h4><div class="dim" style="font-size:11px;padding:4px 8px">Click a file to explore its imports</div>`;
+    drawerSymbols.innerHTML = "";
+    drawerImports.innerHTML = "";
+    allSymbols = [];
+    renderDrawerBreadcrumb();
+
+    // Show files from source module
+    const srcFiles = a.pathsPreview || [];
+    if (srcFiles.length) {
+      const h = document.createElement("h4");
+      h.textContent = `Files in ${a.id}`;
+      drawerFiles.appendChild(h);
+      const list = document.createElement("div");
+      list.className = "file-list";
+      srcFiles.forEach((p) => {
+        const item = document.createElement("div");
+        item.className = "file-item";
+        item.innerHTML = `<span class="fi-dot"></span><span class="fi-path" title="${p}">${p}</span>`;
+        item.addEventListener("click", () => showFileDrawer(p));
+        list.appendChild(item);
+      });
+      drawerFiles.appendChild(list);
+    }
+    openDrawer();
+  }
+
+  // ── Minimap ───────────────────────────────────────────────────
+  function drawMinimap(graph) {
+    let mm = document.querySelector(".minimap");
+    if (!mm) {
+      mm = document.createElement("div");
+      mm.className = "minimap";
+      document.querySelector(".canvas-wrap").appendChild(mm);
+    }
+    if (!graph.nodes.length) { mm.innerHTML = ""; return; }
+
+    const W = 140, H = 90;
+    const xs = graph.nodes.map((n) => n.x), ys = graph.nodes.map((n) => n.y);
+    const minX = Math.min(...xs) - 20, maxX = Math.max(...xs) + 240;
+    const minY = Math.min(...ys) - 20, maxY = Math.max(...ys) + 90;
+    const scaleX = W / (maxX - minX || 1), scaleY = H / (maxY - minY || 1);
+    const sc = Math.min(scaleX, scaleY);
+
+    const svgEl = document.createElementNS(NS, "svg");
+    svgEl.setAttribute("viewBox", `0 0 ${W} ${H}`);
+
+    // Draw edges
+    graph.edges.slice(0, 80).forEach((e) => {
+      const a = graph.nodes.find((n) => n.id === e.source);
+      const b = graph.nodes.find((n) => n.id === e.target);
+      if (!a || !b) return;
+      const line = document.createElementNS(NS, "line");
+      line.setAttribute("x1", (a.x - minX) * sc);
+      line.setAttribute("y1", (a.y - minY) * sc);
+      line.setAttribute("x2", (b.x - minX) * sc);
+      line.setAttribute("y2", (b.y - minY) * sc);
+      line.setAttribute("stroke", "rgba(103,232,249,0.2)");
+      line.setAttribute("stroke-width", "0.5");
+      svgEl.appendChild(line);
+    });
+
+    // Draw nodes
+    graph.nodes.forEach((n) => {
+      const rect = document.createElementNS(NS, "rect");
+      rect.setAttribute("x", (n.x - minX) * sc);
+      rect.setAttribute("y", (n.y - minY) * sc);
+      rect.setAttribute("width", Math.max(4, 220 * sc));
+      rect.setAttribute("height", Math.max(2, 70 * sc));
+      rect.setAttribute("rx", 2);
+      rect.setAttribute("fill", n.id === selected ? "#67e8f9" : "rgba(103,232,249,0.25)");
+      svgEl.appendChild(rect);
+    });
+
+    mm.innerHTML = "";
+    mm.appendChild(svgEl);
+  }
+
+
+  // ── Drag nodes ────────────────────────────────────────────────
   function makeDraggable(g, n) {
-    let dragging = false,
-      startX,
-      startY,
-      origX,
-      origY,
-      moved = false;
+    let dragging = false, startX, startY, origX, origY, moved = false;
     g.addEventListener("pointerdown", (e) => {
       e.stopPropagation();
-      dragging = true;
-      moved = false;
-      g.dataset.moved = "0";
-      startX = e.clientX;
-      startY = e.clientY;
-      origX = n.x;
-      origY = n.y;
+      dragging = true; moved = false; g.dataset.moved = "0";
+      startX = e.clientX; startY = e.clientY;
+      origX = n.x; origY = n.y;
       g.setPointerCapture(e.pointerId);
     });
     g.addEventListener("pointermove", (e) => {
@@ -496,82 +827,60 @@
       const dy = (e.clientY - startY) / view.k;
       if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
       g.dataset.moved = moved ? "1" : "0";
-      n.x = origX + dx;
-      n.y = origY + dy;
+      n.x = origX + dx; n.y = origY + dy;
       g.setAttribute("transform", `translate(${n.x} ${n.y})`);
       if (currentViewGraph) draw(currentViewGraph);
     });
     g.addEventListener("pointerup", (e) => {
       dragging = false;
-      try {
-        g.releasePointerCapture(e.pointerId);
-      } catch {}
+      try { g.releasePointerCapture(e.pointerId); } catch {}
       if (moved) e.stopPropagation();
     });
   }
 
-  let panning = false,
-    px,
-    py;
+  // ── Pan & zoom ────────────────────────────────────────────────
+  let panning = false, px, py;
   svg.addEventListener("pointerdown", (e) => {
-    panning = true;
-    px = e.clientX;
-    py = e.clientY;
+    panning = true; px = e.clientX; py = e.clientY;
     svg.setPointerCapture(e.pointerId);
   });
   svg.addEventListener("pointermove", (e) => {
     if (!panning) return;
-    view.x += e.clientX - px;
-    view.y += e.clientY - py;
-    px = e.clientX;
-    py = e.clientY;
+    view.x += e.clientX - px; view.y += e.clientY - py;
+    px = e.clientX; py = e.clientY;
     if (currentViewGraph) draw(currentViewGraph);
   });
   svg.addEventListener("pointerup", (e) => {
     panning = false;
-    try {
-      svg.releasePointerCapture(e.pointerId);
-    } catch {}
+    try { svg.releasePointerCapture(e.pointerId); } catch {}
   });
   svg.addEventListener("click", () => {
-    if (selected) {
-      selected = null;
-      render();
-    }
+    if (selected) { selected = null; closeDrawer(); render(); }
   });
-  svg.addEventListener(
-    "wheel",
-    (e) => {
-      e.preventDefault();
-      const rect = svg.getBoundingClientRect();
-      const mx = e.clientX - rect.left,
-        my = e.clientY - rect.top;
-      const factor = Math.exp(-e.deltaY * 0.0015);
-      const nk = Math.min(2.5, Math.max(0.25, view.k * factor));
-      view.x = mx - (mx - view.x) * (nk / view.k);
-      view.y = my - (my - view.y) * (nk / view.k);
-      view.k = nk;
-      if (currentViewGraph) draw(currentViewGraph);
-    },
-    { passive: false },
-  );
+  svg.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const rect = svg.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const factor = Math.exp(-e.deltaY * 0.0015);
+    const nk = Math.min(2.5, Math.max(0.25, view.k * factor));
+    view.x = mx - (mx - view.x) * (nk / view.k);
+    view.y = my - (my - view.y) * (nk / view.k);
+    view.k = nk;
+    if (currentViewGraph) draw(currentViewGraph);
+  }, { passive: false });
 
+  // ── Toolbar buttons ───────────────────────────────────────────
   document.getElementById("fit").onclick = () => {
-    if (currentViewGraph) {
-      fit(currentViewGraph);
-      draw(currentViewGraph);
-    }
+    if (currentViewGraph) { fit(currentViewGraph); draw(currentViewGraph); }
   };
 
   if (backBtn) {
     backBtn.onclick = () => {
       if (stack.length === 0) return;
       const prev = stack.pop();
-      view.prefix = prev.prefix;
-      view.depth = prev.depth;
+      view.prefix = prev.prefix; view.depth = prev.depth;
       depthSelect.value = String(view.depth);
-      selected = null;
-      render();
+      selected = null; closeDrawer(); render();
     };
   }
 
@@ -580,21 +889,16 @@
     const r = fromButton
       ? await fetch("/api/rescan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ maxDepth: Number(depthSelect.value) || maxDepth }) }).then((x) => x.json())
       : await fetch("/api/graph").then((x) => x.json());
-    if (r.error) {
-      stats.textContent = "rescan failed: " + r.error;
-      return;
-    }
+    if (r.error) { stats.textContent = "rescan failed: " + r.error; return; }
     scan = r;
     graphsByDepth = scan.graphsByDepth || { 1: scan };
     maxDepth = scan.maxDepth ?? Math.max(1, ...Object.keys(graphsByDepth).map((k) => Number(k)));
     lastGeneratedAt = scan.generatedAt;
     view = { x: 0, y: 0, k: 1, depth: Math.min(view.depth, maxDepth), prefix: null };
     depthSelect.value = String(view.depth);
-    selected = null;
-    stack = [];
-    fillDepthSelect();
-    depthSelect.value = String(view.depth);
-    render();
+    selected = null; stack = [];
+    fillDepthSelect(); depthSelect.value = String(view.depth);
+    closeDrawer(); lastFitKey = ""; render();
     if (activeTab === "insights") renderInsights();
     if (activeTab === "files") renderFilesTable();
   }
@@ -610,31 +914,25 @@
     URL.revokeObjectURL(a.href);
   };
 
+  // ── Keyboard shortcuts ────────────────────────────────────────
   document.addEventListener("keydown", (e) => {
     const tag = e.target && e.target.tagName;
     if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") {
-      if (e.key === "Escape") e.target.blur();
+      if (e.key === "Escape") { e.target.blur(); globalSearchResults.hidden = true; }
       return;
     }
-    if (e.key === "/" && activeTab === "map") {
-      e.preventDefault();
-      moduleFilter.focus();
-    }
-    if (e.key === "f" || e.key === "F") {
-      if (currentViewGraph) {
-        fit(currentViewGraph);
-        draw(currentViewGraph);
-      }
-    }
+    if (e.key === "/" && activeTab === "map") { e.preventDefault(); moduleFilter.focus(); }
+    if (e.key === "f" || e.key === "F") { if (currentViewGraph) { fit(currentViewGraph); draw(currentViewGraph); } }
     if (e.key === "r" || e.key === "R") loadGraph(true);
+    if (e.key === "Escape") { closeDrawer(); selected = null; render(); }
   });
 
   window.addEventListener("resize", () => {
     if (!currentViewGraph) return;
-    fit(currentViewGraph);
-    draw(currentViewGraph);
+    fit(currentViewGraph); draw(currentViewGraph);
   });
 
+  // ── Watch mode auto-refresh ───────────────────────────────────
   if (meta.watch) {
     setInterval(async () => {
       try {
@@ -645,6 +943,214 @@
         }
       } catch {}
     }, 3200);
+  }
+
+  render();
+})();
+
+  // ── Health tab ────────────────────────────────────────────────
+  async function renderHealth() {
+    const wrap = document.getElementById("health-score-wrap");
+    const reasonsEl = document.getElementById("health-reasons");
+    wrap.innerHTML = "<span class='dim'>Loading…</span>";
+    reasonsEl.innerHTML = "";
+
+    let h;
+    try { h = await fetch("/api/health").then(r => r.json()); }
+    catch { wrap.innerHTML = "<span class='dim'>Failed to load health data.</span>"; return; }
+
+    const scoreColor = h.score >= 80 ? "#6ee7b7" : h.score >= 60 ? "#fbbf24" : "#fb7185";
+    const circumference = 2 * Math.PI * 50;
+    const offset = circumference - (h.score / 100) * circumference;
+    const gradeLabel = { A: "Excellent", B: "Good", C: "Fair", D: "Poor", F: "Critical" }[h.grade] || "";
+
+    wrap.innerHTML = `
+      <div class="health-ring">
+        <svg viewBox="0 0 120 120">
+          <circle class="health-ring-bg" cx="60" cy="60" r="50"/>
+          <circle class="health-ring-fill" cx="60" cy="60" r="50"
+            stroke="${scoreColor}"
+            stroke-dasharray="${circumference}"
+            stroke-dashoffset="${offset}"/>
+        </svg>
+        <div class="health-ring-label">
+          <span class="health-score-num" style="color:${scoreColor}">${h.score}</span>
+          <span class="health-score-grade">${h.grade}</span>
+        </div>
+      </div>
+      <div class="health-info">
+        <h3 style="color:${scoreColor}">Grade ${h.grade} — ${gradeLabel}</h3>
+        <p>${h.score}/100 · ${h.reasons.length === 0 ? "No issues detected. Your codebase is clean." : h.reasons.length + " issue(s) found"}</p>
+        <p style="margin-top:8px;font-size:12px;color:var(--muted)">Copy this badge for your README:</p>
+        <code style="font-size:11px;color:var(--cyan);background:rgba(0,0,0,0.3);padding:4px 8px;border-radius:6px;display:inline-block;margin-top:4px;cursor:pointer" id="badge-copy">
+          ![Health ${h.score}/100](https://img.shields.io/badge/health-${h.score}%2F100-${h.score >= 80 ? "brightgreen" : h.score >= 60 ? "yellow" : "red"})
+        </code>
+      </div>
+    `;
+
+    document.getElementById("badge-copy")?.addEventListener("click", () => {
+      navigator.clipboard?.writeText(`![Health ${h.score}/100](https://img.shields.io/badge/health-${h.score}%2F100-${h.score >= 80 ? "brightgreen" : h.score >= 60 ? "yellow" : "red"})`);
+    });
+
+    if (h.reasons.length === 0) {
+      reasonsEl.innerHTML = `<div class="health-ok">✓ No issues detected — your architecture is clean!</div>`;
+      return;
+    }
+
+    const icons = { cycles: "🔄", isolated: "🏝", oversized: "📦", hubs: "🕸" };
+    h.reasons.forEach(r => {
+      const div = document.createElement("div");
+      div.className = "health-reason";
+      div.innerHTML = `
+        <span class="health-reason-icon">${icons[r.kind] || "⚠️"}</span>
+        <div class="health-reason-body">
+          <div class="health-reason-msg">${r.msg}</div>
+          ${r.samples ? `<div class="health-reason-detail">${r.samples.slice(0,3).map(s => s.path || s).join(" · ")}</div>` : ""}
+        </div>
+        <span class="health-penalty">−${r.penalty} pts</span>
+      `;
+      reasonsEl.appendChild(div);
+    });
+  }
+
+  // ── Impact tab ────────────────────────────────────────────────
+  document.getElementById("impact-run")?.addEventListener("click", runImpactAnalysis);
+  document.getElementById("impact-input")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) runImpactAnalysis();
+  });
+
+  async function runImpactAnalysis() {
+    const input = document.getElementById("impact-input");
+    const result = document.getElementById("impact-result");
+    const paths = (input.value || "").split("\n").map(s => s.trim()).filter(Boolean);
+    if (!paths.length) return;
+
+    result.innerHTML = `<div class="impact-empty">Analyzing…</div>`;
+    let data;
+    try {
+      data = await fetch("/api/impact", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paths }),
+      }).then(r => r.json());
+    } catch {
+      result.innerHTML = `<div class="impact-empty">Analysis failed.</div>`;
+      return;
+    }
+
+    if (data.error) {
+      result.innerHTML = `<div class="impact-empty">Error: ${data.error}</div>`;
+      return;
+    }
+
+    const riskClass = data.riskLevel;
+    result.innerHTML = "";
+
+    // Summary bar
+    const bar = document.createElement("div");
+    bar.className = "impact-summary-bar";
+    bar.innerHTML = `
+      <span class="impact-risk-badge ${riskClass}">${riskClass} risk</span>
+      <span class="impact-stat"><strong>${data.totalAffected}</strong> files affected</span>
+      <span class="impact-stat"><strong>${data.directCount}</strong> direct</span>
+      <span class="impact-stat"><strong>${data.transitiveCount}</strong> transitive</span>
+    `;
+    result.appendChild(bar);
+
+    if (data.totalAffected === 0) {
+      const empty = document.createElement("div");
+      empty.className = "impact-empty";
+      empty.textContent = "No affected files found. These files may not be imported by anything.";
+      result.appendChild(empty);
+      return;
+    }
+
+    // Module impact chips
+    if (data.moduleImpact?.length) {
+      const modWrap = document.createElement("div");
+      modWrap.innerHTML = `<div style="font-size:11px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.1em">Affected modules</div>`;
+      const chips = document.createElement("div");
+      chips.className = "impact-modules";
+      data.moduleImpact.forEach(m => {
+        const cls = m.maxRisk >= 7 ? "risk-high" : m.maxRisk >= 4 ? "risk-med" : "risk-low";
+        const chip = document.createElement("span");
+        chip.className = `impact-mod-chip ${cls}`;
+        chip.textContent = `${m.module} (${m.files} files)`;
+        chips.appendChild(chip);
+      });
+      modWrap.appendChild(chips);
+      result.appendChild(modWrap);
+    }
+
+    // Affected files table
+    const tableWrap = document.createElement("div");
+    tableWrap.className = "table-wrap tall";
+    tableWrap.innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>File</th><th>Depth</th><th>LOC</th><th>Risk</th></tr></thead>
+        <tbody>${data.affected.map(f => `
+          <tr>
+            <td style="color:${f.direct ? "var(--cyan)" : "var(--fg)"}">${f.path}${f.direct ? " <span style='color:var(--muted);font-size:10px'>direct</span>" : ""}</td>
+            <td>${f.depth}</td>
+            <td>${f.loc}</td>
+            <td><span style="color:${f.risk >= 7 ? "var(--rose)" : f.risk >= 4 ? "var(--amber)" : "var(--emerald)"};font-weight:600">${f.risk}/10</span></td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    `;
+    result.appendChild(tableWrap);
+
+    // Make rows clickable
+    tableWrap.querySelectorAll("tbody tr").forEach((tr, i) => {
+      tr.style.cursor = "pointer";
+      tr.addEventListener("click", () => {
+        setTab("map");
+        showFileDrawer(data.affected[i].path);
+      });
+    });
+  }
+
+  // ── Dead code tab ─────────────────────────────────────────────
+  document.getElementById("deadcode-refresh")?.addEventListener("click", renderDeadCode);
+
+  async function renderDeadCode() {
+    const summary = document.getElementById("deadcode-summary");
+    const tbody = document.querySelector("#tbl-deadcode tbody");
+    summary.innerHTML = "<span class='dim'>Loading…</span>";
+    tbody.innerHTML = "";
+
+    let data;
+    try { data = await fetch("/api/deadcode").then(r => r.json()); }
+    catch { summary.innerHTML = "<span class='dim'>Failed to load.</span>"; return; }
+
+    summary.innerHTML = [
+      chip(`${data.totalFiles} total files`),
+      chip(`${data.candidateCount} candidates`),
+      chip(`~${data.potentialLocSavings} LOC potentially removable`),
+    ].join("");
+
+    tbody.innerHTML = "";
+    (data.candidates || []).forEach(f => {
+      const tr = document.createElement("tr");
+      const confClass = f.confidence >= 80 ? "high" : f.confidence < 50 ? "low" : "";
+      tr.innerHTML = `
+        <td style="cursor:pointer;color:var(--cyan)">${f.path}</td>
+        <td>${f.loc}</td>
+        <td>${f.outgoing}</td>
+        <td>
+          <div class="confidence-bar">
+            <div class="confidence-fill ${confClass}" style="width:${f.confidence}px;max-width:80px"></div>
+            <span style="font-size:10px;color:var(--muted)">${f.confidence}%</span>
+          </div>
+        </td>
+        <td style="color:var(--muted);font-size:11px">${f.reason}</td>
+      `;
+      tr.querySelector("td").addEventListener("click", () => {
+        setTab("map");
+        showFileDrawer(f.path);
+      });
+      tbody.appendChild(tr);
+    });
   }
 
   render();

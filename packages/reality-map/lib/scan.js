@@ -144,12 +144,61 @@ const IMPORT_RE = /(?:import|export)\s+(?:[^'"`;]*?\sfrom\s+)?["']([^"']+)["']|r
 
 function extractImports(src) {
   const found = new Set();
+  const details = [];
   let m;
   IMPORT_RE.lastIndex = 0;
   while ((m = IMPORT_RE.exec(src))) {
-    found.add(m[1] || m[2] || m[3]);
+    const spec = m[1] || m[2] || m[3];
+    found.add(spec);
+    const lineNum = src.substring(0, m.index).split('\n').length;
+    details.push({ spec, line: lineNum, statement: m[0] });
   }
-  return Array.from(found);
+  return { specs: Array.from(found), details };
+}
+
+function extractFunctionsAndClasses(src, filePath) {
+  const items = [];
+  const ext = path.extname(filePath).toLowerCase();
+  
+  // Function declarations: function name(...) or async function name(...)
+  const funcRe = /(?:async\s+)?function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g;
+  let m;
+  while ((m = funcRe.exec(src))) {
+    const line = src.substring(0, m.index).split('\n').length;
+    items.push({ type: 'function', name: m[1], line });
+  }
+  
+  // Arrow functions: const/let/var name = (...) =>
+  const arrowRe = /(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>/g;
+  while ((m = arrowRe.exec(src))) {
+    const line = src.substring(0, m.index).split('\n').length;
+    items.push({ type: 'function', name: m[1], line });
+  }
+  
+  // Class declarations: class Name
+  const classRe = /class\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g;
+  while ((m = classRe.exec(src))) {
+    const line = src.substring(0, m.index).split('\n').length;
+    items.push({ type: 'class', name: m[1], line });
+  }
+  
+  // TypeScript interfaces: interface Name
+  if (['.ts', '.tsx'].includes(ext)) {
+    const interfaceRe = /interface\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g;
+    while ((m = interfaceRe.exec(src))) {
+      const line = src.substring(0, m.index).split('\n').length;
+      items.push({ type: 'interface', name: m[1], line });
+    }
+    
+    // TypeScript types: type Name =
+    const typeRe = /type\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=/g;
+    while ((m = typeRe.exec(src))) {
+      const line = src.substring(0, m.index).split('\n').length;
+      items.push({ type: 'type', name: m[1], line });
+    }
+  }
+  
+  return items;
 }
 
 function resolveRel(fromFile, spec, allFiles, codeExtSet) {
@@ -324,6 +373,7 @@ async function scanProject(root, opts = {}) {
 
   const fileEdges = [];
   const fileImports = new Map();
+  const fileSymbols = new Map();
   const externalCounts = new Map();
 
   let totalLoc = 0;
@@ -335,9 +385,14 @@ async function scanProject(root, opts = {}) {
     try { src = await fs.promises.readFile(f, "utf8"); } catch { return; }
     const loc = src.split("\n").length;
     fileLoc.set(f, loc); totalLoc += loc;
-    const specs = extractImports(src);
-    fileImports.set(f, specs);
-    for (const s of specs) {
+    
+    const importData = extractImports(src);
+    fileImports.set(f, importData);
+    
+    const symbols = extractFunctionsAndClasses(src, f);
+    fileSymbols.set(f, symbols);
+    
+    for (const s of importData.specs) {
       if (s.startsWith(".") || s.startsWith("/")) {
         const tgt = resolveRel(f, s, fileSet, codeExtSet);
         if (tgt && tgt !== f) fileEdges.push([f, tgt]);
@@ -464,6 +519,11 @@ async function scanProject(root, opts = {}) {
     maxDepth,
     insights,
     scannedFilePaths: files.map((f) => path.relative(root, f).split(path.sep).join("/")).sort(),
+    fileDetails: {
+      imports: Object.fromEntries([...fileImports.entries()].map(([k, v]) => [path.relative(root, k).split(path.sep).join("/"), v])),
+      symbols: Object.fromEntries([...fileSymbols.entries()].map(([k, v]) => [path.relative(root, k).split(path.sep).join("/"), v])),
+      loc: Object.fromEntries([...fileLoc.entries()].map(([k, v]) => [path.relative(root, k).split(path.sep).join("/"), v])),
+    },
   };
 }
 

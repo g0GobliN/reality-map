@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>RealityMap — local dashboard</title>
+<title>RealityMap — by g0GobliN</title>
 <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
@@ -13,12 +13,20 @@
       <strong>RealityMap</strong>
       <span class="dim mono" id="meta-version"></span>
       <span class="dim mono" id="meta-root">…</span>
+      <a href="https://github.com/g0GobliN" target="_blank" rel="noopener" class="brand-author dim mono">by g0GobliN</a>
     </div>
     <nav class="tabs" id="main-tabs" aria-label="Views">
       <button type="button" class="tab active" data-tab="map">Map</button>
       <button type="button" class="tab" data-tab="insights">Insights</button>
       <button type="button" class="tab" data-tab="files">Files</button>
+      <button type="button" class="tab" data-tab="health">Health</button>
+      <button type="button" class="tab" data-tab="impact">Impact</button>
+      <button type="button" class="tab" data-tab="deadcode">Dead Code</button>
     </nav>
+    <div class="global-search-wrap">
+      <input type="search" id="global-search" class="inp global-search" placeholder="Jump to file… (Ctrl+K)" autocomplete="off" />
+      <div id="global-search-results" class="search-dropdown" hidden></div>
+    </div>
     <div class="stats mono" id="stats">scanning…</div>
     <div class="actions">
       <button type="button" id="export" title="Download scan JSON">export</button>
@@ -28,7 +36,7 @@
     </div>
   </header>
 
-  <div id="view-map" class="layout">
+  <div id="view-map">
     <aside class="side glass">
       <div class="toolbar">
         <input type="search" id="module-filter" class="inp" placeholder="Filter modules… ( / )" autocomplete="off" />
@@ -58,8 +66,27 @@
     <section class="canvas-wrap">
       <svg id="canvas"></svg>
       <div id="hud" class="hud mono"></div>
-      <div class="kbd-hint mono dim" id="kbd-hint">/ search · F fit · R rescan · wheel zoom</div>
+      <div class="kbd-hint mono dim" id="kbd-hint">/ search · F fit · R rescan · wheel zoom · click module to drill in</div>
+      <!-- Edge tooltip -->
+      <div id="edge-tooltip" class="edge-tooltip" hidden></div>
     </section>
+    <!-- File detail drawer -->
+    <aside id="file-drawer" class="file-drawer glass" hidden>
+      <div class="drawer-head">
+        <div id="drawer-breadcrumb" class="drawer-breadcrumb" hidden></div>
+        <div class="drawer-title-row">
+          <span id="drawer-title" class="drawer-title mono"></span>
+          <button type="button" id="drawer-close" class="drawer-close" title="Close">✕</button>
+        </div>
+        <div id="drawer-meta" class="drawer-meta dim mono"></div>
+        <input type="search" id="symbol-search" class="inp" placeholder="Search symbols…" autocomplete="off" />
+      </div>
+      <div class="drawer-body">
+        <div id="drawer-files" class="drawer-section"></div>
+        <div id="drawer-symbols" class="drawer-section"></div>
+        <div id="drawer-imports" class="drawer-section"></div>
+      </div>
+    </aside>
   </div>
 
   <div id="view-insights" class="full-panel" hidden>
@@ -96,6 +123,46 @@
       </div>
       <p class="hint dim" id="files-trunc"></p>
       <div class="table-wrap tall"><table class="data-table" id="tbl-files"><thead><tr><th>Path</th><th>Ext</th><th>LOC</th><th>Importers</th><th>Importees</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- Health panel -->
+  <div id="view-health" class="full-panel" hidden>
+    <div class="panel-inner glass">
+      <h2 class="panel-title">Codebase Health</h2>
+      <div id="health-score-wrap" class="health-score-wrap"></div>
+      <div id="health-reasons" class="health-reasons"></div>
+    </div>
+  </div>
+
+  <!-- Impact panel -->
+  <div id="view-impact" class="full-panel" hidden>
+    <div class="panel-inner glass">
+      <h2 class="panel-title">Change Impact Analysis</h2>
+      <p class="hint dim">Enter file paths (one per line) to see what breaks if they change.</p>
+      <div class="impact-input-row">
+        <textarea id="impact-input" class="impact-textarea" placeholder="src/lib/utils.ts&#10;src/components/Button.tsx" rows="4"></textarea>
+        <button type="button" id="impact-run" class="btn-primary">Analyze Impact</button>
+      </div>
+      <div id="impact-result" class="impact-result"></div>
+    </div>
+  </div>
+
+  <!-- Dead code panel -->
+  <div id="view-deadcode" class="full-panel" hidden>
+    <div class="panel-inner glass">
+      <div class="files-head">
+        <h2 class="panel-title">Dead Code Candidates</h2>
+        <button type="button" id="deadcode-refresh" class="btn-secondary">Refresh</button>
+      </div>
+      <p class="hint dim">Files with no internal importers, scored by likelihood of being unused. Always verify before deleting.</p>
+      <div id="deadcode-summary" class="summary-chips" style="margin-bottom:16px"></div>
+      <div class="table-wrap tall">
+        <table class="data-table" id="tbl-deadcode">
+          <thead><tr><th>Path</th><th>LOC</th><th>Outgoing imports</th><th>Confidence</th><th>Reason</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
