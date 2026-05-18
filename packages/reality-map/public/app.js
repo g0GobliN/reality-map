@@ -1,11 +1,11 @@
 /* RealityMap dashboard — vanilla SVG + multi-view, zero deps */
 (async function () {
   const TONE = {
-    cyan: "#67e8f9",
-    violet: "#a78bfa",
-    emerald: "#6ee7b7",
-    amber: "#fbbf24",
-    rose: "#fb7185",
+    cyan: "oklch(0.82 0.16 210)",
+    violet: "oklch(0.72 0.19 295)",
+    emerald: "oklch(0.78 0.15 160)",
+    amber: "oklch(0.82 0.16 75)",
+    rose: "oklch(0.72 0.20 18)",
   };
 
   // ── DOM refs ──────────────────────────────────────────────────
@@ -847,11 +847,11 @@
     const defs = el("defs");
     defs.innerHTML = `
       <linearGradient id="node-grad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#1a2030" stop-opacity="0.95"/>
-        <stop offset="1" stop-color="#0e131c" stop-opacity="0.95"/>
+        <stop offset="0" stop-color="oklch(0.21 0.022 265)" stop-opacity="0.97"/>
+        <stop offset="1" stop-color="oklch(0.14 0.017 265)" stop-opacity="0.97"/>
       </linearGradient>
       <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" fill="currentColor" opacity="0.6"/>
+        <path d="M0,0 L10,5 L0,10 z" fill="currentColor" opacity="0.5"/>
       </marker>
     `;
     svg.appendChild(defs);
@@ -955,109 +955,59 @@
       if (dimmed) g.style.filter = "grayscale(0.5) blur(0.5px)";
       else g.style.filter = "none";
 
-      g.appendChild(
-        el("rect", {
-          class: "node-card",
-          x: 0,
-          y: 0,
-          width: curW,
-          height: curH,
-          rx: 12,
-          stroke: accentColor,
-          "stroke-opacity": 0.5,
-        }),
-      );
-      g.appendChild(
-        el("rect", { class: "accent", x: 0, y: 0, width: 4, height: curH, rx: 2, fill: accentColor }),
-      );
+      const pct = Math.round((n.loc / barMax) * 100);
+      const labelTxt = n.label.length > 26 ? n.label.slice(0, 24) + "…" : n.label;
+      const subTxt = (n.sub ?? "") + " · ⇣" + (n.fanIn ?? 0) + " ⇡" + (n.fanOut ?? 0);
 
-      const label = el("text", { class: "node-label", x: 16, y: 28 });
-      label.textContent = n.label.length > 24 ? n.label.slice(0, 22) + "…" : n.label;
-      g.appendChild(label);
+      const fo = document.createElementNS("http://www.w3.org/2000/svg", "foreignObject");
+      fo.setAttribute("x", 0);
+      fo.setAttribute("y", 0);
+      fo.setAttribute("width", curW);
+      fo.setAttribute("height", curH);
 
-      const sub = el("text", { class: "node-sub", x: 16, y: 46 });
-      sub.textContent = n.sub + " · ⇣" + (n.fanIn ?? 0) + " ⇢" + (n.fanOut ?? 0);
-      g.appendChild(sub);
+      const card = document.createElement("div");
+      card.className = "node-fo";
+      card.style.borderColor = accentColor.slice(0, -1) + " / 0.45)";
 
-      const wbar = Math.max(6, Math.round((n.loc / barMax) * (curW - 32)));
-      g.appendChild(
-        el("rect", {
-          x: 16,
-          y: curH - 14,
-          width: curW - 32,
-          height: 3,
-          rx: 2,
-          fill: "rgba(255,255,255,0.06)",
-        }),
-      );
-      g.appendChild(
-        el("rect", {
-          x: 16,
-          y: curH - 14,
-          width: wbar,
-          height: 3,
-          rx: 2,
-          fill: accentColor,
-          "fill-opacity": 0.7,
-        }),
-      );
+      const warnTooltipMsg = n.warnMsg || "Circular dependency detected";
+      const warnTip = n.isOrphan
+        ? 'This is an "Isolated Island" — it\'s not connected to the rest of your app.'
+        : 'This is a "Tangled Knot" — circular connections make the code harder to maintain.';
 
+      card.innerHTML = `
+        <div class="node-fo-top" style="background:linear-gradient(90deg,transparent,${accentColor},transparent)"></div>
+        <div class="node-fo-inner">
+          <div class="node-fo-label">${labelTxt}</div>
+          <div class="node-fo-sub">${subTxt}</div>
+          <div class="node-fo-bar-bg"><div class="node-fo-bar" style="width:${pct}%;background:${accentColor}"></div></div>
+        </div>
+        ${n.warn ? `<div class="node-fo-badge node-fo-badge-hover" data-warn="${warnTooltipMsg.replace(/"/g, "&#34;")}" data-tip="${warnTip.replace(/"/g, "&#34;")}">!</div>` : ""}
+        ${view.depth === maxDepth ? `<div style="position:absolute;bottom:7px;right:9px;font-size:9px;opacity:0.45;color:${accentColor};pointer-events:none">⊕</div>` : ""}
+      `;
+
+      // Wire warn badge tooltip
       if (n.warn) {
-        const badge = el("g", { transform: `translate(${curW - 28} 12)`, style: "cursor:help" });
-        badge.appendChild(
-          el("circle", {
-            r: 9,
-            cx: 9,
-            cy: 9,
-            fill: TONE.rose,
-            "fill-opacity": 0.18,
-            stroke: TONE.rose,
-            "stroke-opacity": 0.6,
-          }),
-        );
-        const t = el("text", {
-          x: 9,
-          y: 13,
-          "text-anchor": "middle",
-          "font-size": 11,
-          fill: TONE.rose,
-          "font-weight": 700,
-        });
-        t.textContent = "!";
-        badge.appendChild(t);
-
-        badge.addEventListener("mouseenter", (ev) => {
-          edgeTooltip.innerHTML = `
-            <div class="et-title">⚠️ Architecture Warning</div>
-            <div class="et-line"><strong>Problem:</strong> ${n.warnMsg || "Circular dependency detected"}</div>
-            <div class="et-line" style="margin-top:8px; opacity:0.9; font-size:11px; line-height:1.4">
-              <em>Tip: ${n.isOrphan ? 'This is an "Isolated Island" — it\'s not connected to the rest of your app.' : 'This is a "Tangled Knot" — circular connections make the code harder to maintain.'} Click the node to see more.</em>
-            </div>
-          `;
-          edgeTooltip.hidden = false;
-          positionEdgeTooltip(ev);
-        });
-        badge.addEventListener("mousemove", (ev) => positionEdgeTooltip(ev));
-        badge.addEventListener("mouseleave", () => {
-          edgeTooltip.hidden = true;
-        });
-
-        g.appendChild(badge);
+        const badgeEl = card.querySelector(".node-fo-badge-hover");
+        if (badgeEl) {
+          badgeEl.addEventListener("mouseenter", (ev) => {
+            ev.stopPropagation();
+            edgeTooltip.innerHTML = `
+              <div class="et-title">⚠️ Architecture Warning</div>
+              <div class="et-line"><strong>Problem:</strong> ${warnTooltipMsg}</div>
+              <div class="et-line" style="margin-top:8px; opacity:0.9; font-size:11px; line-height:1.4">
+                <em>Tip: ${warnTip}</em>
+              </div>
+            `;
+            edgeTooltip.hidden = false;
+            positionEdgeTooltip(ev);
+          });
+          badgeEl.addEventListener("mousemove", (ev) => positionEdgeTooltip(ev));
+          badgeEl.addEventListener("mouseleave", () => { edgeTooltip.hidden = true; });
+        }
       }
 
-      // "Explore" indicator at max depth
-      if (view.depth === maxDepth) {
-        const exploreHint = el("text", {
-          x: curW - 10,
-          y: 14,
-          "text-anchor": "end",
-          "font-size": 9,
-          fill: accentColor,
-          "fill-opacity": 0.6,
-        });
-        exploreHint.textContent = "⊕";
-        g.appendChild(exploreHint);
-      }
+      fo.appendChild(card);
+      g.appendChild(fo);
 
       makeDraggable(g, n);
       g.addEventListener("click", (ev) => {
