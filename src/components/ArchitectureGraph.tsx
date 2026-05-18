@@ -125,7 +125,9 @@ export function ArchitectureGraph({ compact = false }: { compact?: boolean }) {
         fitViewOptions={{ padding: 0.18 }}
         proOptions={{ hideAttribution: true }}
         panOnDrag
-        zoomOnScroll={false}
+        zoomOnScroll
+        minZoom={0.35}
+        maxZoom={1.65}
         nodesDraggable
       >
         <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="var(--grid)" />

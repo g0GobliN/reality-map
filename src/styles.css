@@ -102,6 +102,12 @@
 
 @layer base {
   * { border-color: var(--color-border); }
+  html {
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
   html, body {
     font-family: var(--font-display);
     background: var(--background);

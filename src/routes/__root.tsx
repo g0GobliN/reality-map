@@ -9,6 +9,10 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/sonner";
+import { SiteCommandMenu } from "@/components/SiteCommandMenu";
+import { ScrollProgress } from "@/components/ScrollProgress";
 
 function NotFoundComponent() {
   return (
@@ -72,14 +76,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "RealityMap" },
+      {
+        name: "description",
+        content: "Visual architecture maps for AI-generated codebases — local-first, one command.",
+      },
+      { name: "author", content: "RealityMap" },
+      { property: "og:title", content: "RealityMap" },
+      {
+        property: "og:description",
+        content:
+          "Interactive maps of files, services, APIs, and dependencies. Run locally in seconds.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:site", content: "@RealityMap" },
     ],
     links: [
       {
@@ -101,7 +112,10 @@ function RootShell({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <ScrollProgress />
         {children}
+        <SiteCommandMenu />
+        <Toaster richColors closeButton position="top-center" />
         <Scripts />
       </body>
     </html>
@@ -113,7 +127,9 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <TooltipProvider delayDuration={200}>
+        <Outlet />
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

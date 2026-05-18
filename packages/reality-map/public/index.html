@@ -11,30 +11,93 @@
     <div class="brand">
       <span class="logo-dot"></span>
       <strong>RealityMap</strong>
+      <span class="dim mono" id="meta-version"></span>
       <span class="dim mono" id="meta-root">…</span>
     </div>
+    <nav class="tabs" id="main-tabs" aria-label="Views">
+      <button type="button" class="tab active" data-tab="map">Map</button>
+      <button type="button" class="tab" data-tab="insights">Insights</button>
+      <button type="button" class="tab" data-tab="files">Files</button>
+    </nav>
     <div class="stats mono" id="stats">scanning…</div>
     <div class="actions">
-      <button id="fit">fit</button>
-      <button id="back" title="Back to previous level">back</button>
-      <button id="reload">rescan</button>
+      <button type="button" id="export" title="Download scan JSON">export</button>
+      <button type="button" id="fit" title="Fit graph (F)">fit</button>
+      <button type="button" id="back" title="Back (Esc stack)">back</button>
+      <button type="button" id="reload" title="Rescan project (R)">rescan</button>
     </div>
   </header>
 
-  <main class="layout">
+  <div id="view-map" class="layout">
     <aside class="side glass">
+      <div class="toolbar">
+        <input type="search" id="module-filter" class="inp" placeholder="Filter modules… ( / )" autocomplete="off" />
+        <div class="row-tools">
+          <label class="lbl">Sort
+            <select id="module-sort" class="sel">
+              <option value="loc">LOC</option>
+              <option value="name">Name</option>
+              <option value="fanIn">Fan-in</option>
+              <option value="fanOut">Fan-out</option>
+            </select>
+          </label>
+          <label class="lbl">Depth
+            <select id="depth-select" class="sel"></select>
+          </label>
+        </div>
+      </div>
       <h3>Modules</h3>
       <div id="module-list" class="list"></div>
+      <h3>Selected</h3>
+      <div id="detail-panel" class="detail mono dim">Click a module…</div>
       <h3>Cycles</h3>
       <div id="cycle-list" class="list"></div>
-      <h3>Top dependencies</h3>
+      <h3>Top packages</h3>
       <div id="ext-list" class="list"></div>
     </aside>
     <section class="canvas-wrap">
       <svg id="canvas"></svg>
       <div id="hud" class="hud mono"></div>
+      <div class="kbd-hint mono dim" id="kbd-hint">/ search · F fit · R rescan · wheel zoom</div>
     </section>
-  </main>
+  </div>
+
+  <div id="view-insights" class="full-panel" hidden>
+    <div class="panel-inner glass">
+      <h2 class="panel-title">Repository insights</h2>
+      <div id="ins-summary" class="summary-chips"></div>
+      <div class="grid-2">
+        <section>
+          <h3 class="sub-h">Largest files</h3>
+          <div class="table-wrap"><table class="data-table" id="tbl-top-loc"><thead><tr><th>Path</th><th>LOC</th></tr></thead><tbody></tbody></table></div>
+        </section>
+        <section>
+          <h3 class="sub-h">Most imported internally</h3>
+          <div class="table-wrap"><table class="data-table" id="tbl-imported"><thead><tr><th>Path</th><th>Importers</th><th>LOC</th></tr></thead><tbody></tbody></table></div>
+        </section>
+        <section>
+          <h3 class="sub-h">Coupling hubs (in×out)</h3>
+          <div class="table-wrap"><table class="data-table" id="tbl-hubs"><thead><tr><th>Path</th><th>In</th><th>Out</th><th>Score</th></tr></thead><tbody></tbody></table></div>
+        </section>
+        <section>
+          <h3 class="sub-h">No internal importers</h3>
+          <p class="hint dim">Often entry points, config, or unused code — verify before deleting.</p>
+          <div class="table-wrap"><table class="data-table" id="tbl-zero"><thead><tr><th>Path</th><th>LOC</th><th>Internal out</th></tr></thead><tbody></tbody></table></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="view-files" class="full-panel" hidden>
+    <div class="panel-inner glass">
+      <div class="files-head">
+        <h2 class="panel-title">Source files</h2>
+        <input type="search" id="file-filter" class="inp inp-wide" placeholder="Filter by path…" autocomplete="off" />
+      </div>
+      <p class="hint dim" id="files-trunc"></p>
+      <div class="table-wrap tall"><table class="data-table" id="tbl-files"><thead><tr><th>Path</th><th>Ext</th><th>LOC</th><th>Importers</th><th>Importees</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
 
   <script src="/app.js"></script>
 </body>

@@ -16,13 +16,113 @@ const CODE_EXT = new Set([
   ".vue", ".svelte", ".astro",
 ]);
 
-function isCode(file) {
-  return CODE_EXT.has(path.extname(file).toLowerCase());
+const FILES_INDEX_CAP = 6000;
+
+function mergeCodeExtensions(extra) {
+  const s = new Set(CODE_EXT);
+  for (const raw of extra || []) {
+    let e = String(raw).trim().toLowerCase();
+    if (!e) continue;
+    if (!e.startsWith(".")) e = "." + e;
+    s.add(e);
+  }
+  return s;
 }
 
-async function walk(root) {
+/** @returns {string[]} */
+function parseRealityMapIgnoreFile(contents) {
+  const patterns = [];
+  for (const line of String(contents).split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    patterns.push(t.replace(/\\/g, "/"));
+  }
+  return patterns;
+}
+
+function globLineToRegex(line) {
+  let s = "";
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === "*") {
+      s += "[^/]*";
+      continue;
+    }
+    if (c === "?") {
+      s += "[^/]";
+      continue;
+    }
+    if ("\\.^$+()[]{}|".includes(c)) {
+      s += "\\" + c;
+      continue;
+    }
+    s += c;
+  }
+  return new RegExp("^" + s + "$");
+}
+
+/**
+ * Minimal ignore rules (not full .gitignore):
+ * - Lines are paths relative to project root (forward slashes).
+ * - `*` and `?` wildcards match within a single path segment (no `/` in a match span).
+ * - If the line has no glob chars, it matches that path or anything under it
+ *   (`foo` matches `foo` and `foo/…`; `foo/` is treated the same).
+ */
+function compileRealityMapIgnorePatterns(lines) {
+  const out = [];
+  for (const posix of lines) {
+    const hasGlob = /[*?]/.test(posix);
+    if (hasGlob) {
+      out.push({ kind: "glob", re: globLineToRegex(posix), raw: posix });
+    } else {
+      const trimmed = posix.endsWith("/") ? posix.slice(0, -1) : posix;
+      out.push({ kind: "prefix", prefix: trimmed, raw: posix });
+    }
+  }
+  return out;
+}
+
+async function loadRealityMapIgnore(root) {
+  const fp = path.join(root, ".realitymapignore");
+  let txt;
+  try {
+    txt = await fs.promises.readFile(fp, "utf8");
+  } catch (e) {
+    if (e && (e.code === "ENOENT" || e.code === "EISDIR")) return [];
+    const err = new Error(`cannot read .realitymapignore: ${fp}`);
+    err.code = "EIGNORE";
+    err.cause = e;
+    throw err;
+  }
+  return compileRealityMapIgnorePatterns(parseRealityMapIgnoreFile(txt));
+}
+
+function relPosixFromRoot(root, fullPath) {
+  return path.relative(root, fullPath).split(path.sep).join("/");
+}
+
+function isIgnoredRel(rel, isDir, matchers) {
+  if (!matchers || !matchers.length) return false;
+  for (const m of matchers) {
+    if (m.kind === "glob") {
+      if (m.re.test(rel)) return true;
+    } else if (m.kind === "prefix") {
+      if (rel === m.prefix || rel.startsWith(m.prefix + "/")) return true;
+    }
+  }
+  return false;
+}
+
+async function walk(root, opts = {}) {
+  const codeExtSet = opts.codeExtSet instanceof Set ? opts.codeExtSet : CODE_EXT;
+  const ignoreMatchers = opts.ignoreMatchers || [];
+  function isCodeFile(file) {
+    return codeExtSet.has(path.extname(file).toLowerCase());
+  }
   const out = [];
   async function rec(dir) {
+    const relHere = relPosixFromRoot(root, dir);
+    if (relHere && relHere !== "." && isIgnoredRel(relHere, true, ignoreMatchers)) return;
     let entries;
     try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); }
     catch { return; }
@@ -30,8 +130,10 @@ async function walk(root) {
       if (e.name.startsWith(".") && IGNORE_DIRS.has(e.name)) continue;
       if (IGNORE_DIRS.has(e.name)) continue;
       const full = path.join(dir, e.name);
+      const rel = relPosixFromRoot(root, full);
+      if (isIgnoredRel(rel, e.isDirectory(), ignoreMatchers)) continue;
       if (e.isDirectory()) await rec(full);
-      else if (e.isFile() && isCode(e.name)) out.push(full);
+      else if (e.isFile() && isCodeFile(e.name)) out.push(full);
     }
   }
   await rec(root);
@@ -43,31 +145,28 @@ const IMPORT_RE = /(?:import|export)\s+(?:[^'"`;]*?\sfrom\s+)?["']([^"']+)["']|r
 function extractImports(src) {
   const found = new Set();
   let m;
+  IMPORT_RE.lastIndex = 0;
   while ((m = IMPORT_RE.exec(src))) {
     found.add(m[1] || m[2] || m[3]);
   }
   return Array.from(found);
 }
 
-function resolveRel(fromFile, spec, allFiles) {
+function resolveRel(fromFile, spec, allFiles, codeExtSet) {
+  const extSet = codeExtSet instanceof Set ? codeExtSet : CODE_EXT;
   if (!spec.startsWith(".") && !spec.startsWith("/")) return null;
   const base = path.resolve(path.dirname(fromFile), spec);
   const candidates = [
     base,
-    ...[...CODE_EXT].map((e) => base + e),
-    ...[...CODE_EXT].map((e) => path.join(base, "index" + e)),
+    ...[...extSet].map((e) => base + e),
+    ...[...extSet].map((e) => path.join(base, "index" + e)),
   ];
   for (const c of candidates) if (allFiles.has(c)) return c;
   return null;
 }
 
-// Group files into "modules" by folder depth.
-// depth=1 => src/<first>, app/<first>, <top-level>
-// depth=2 => src/<first>/<second>, app/<first>/<second>, <top-level>/<next>
-// depth=3 => src/<first>/<second>/<third>, ...
 function moduleOf(rel, depth) {
   const parts = rel.split(path.sep).filter(Boolean);
-  // rel is a file path; exclude the filename so modules represent folders, not files.
   const dirs = parts.slice(0, -1);
   const d = Math.max(1, Number(depth || 1));
 
@@ -120,18 +219,114 @@ function detectCycles(adj) {
   return cycles;
 }
 
+function buildInsights(root, files, fileEdges, fileLoc, externalCounts) {
+  const rel = (p) => path.relative(root, p).split(path.sep).join("/");
+
+  const incoming = new Map();
+  const outgoing = new Map();
+  for (const [a, b] of fileEdges) {
+    incoming.set(b, (incoming.get(b) || 0) + 1);
+    outgoing.set(a, (outgoing.get(a) || 0) + 1);
+  }
+
+  let externalRefs = 0;
+  for (const c of externalCounts.values()) externalRefs += c;
+
+  const topFilesByLoc = [...files]
+    .map((f) => ({ path: rel(f), loc: fileLoc.get(f) || 0 }))
+    .sort((a, b) => b.loc - a.loc)
+    .slice(0, 35);
+
+  const topImported = [...incoming.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 30)
+    .map(([f, count]) => ({ path: rel(f), count, loc: fileLoc.get(f) || 0 }));
+
+  const hubs = [...files]
+    .map((f) => {
+      const inn = incoming.get(f) || 0;
+      const out = outgoing.get(f) || 0;
+      return { path: rel(f), loc: fileLoc.get(f) || 0, in: inn, out, score: (inn + 1) * (out + 1) };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 25);
+
+  const zeroInternalImporters = files
+    .filter((f) => !(incoming.get(f) > 0))
+    .map((f) => ({ path: rel(f), loc: fileLoc.get(f) || 0, internalExports: outgoing.get(f) || 0 }))
+    .sort((a, b) => b.loc - a.loc)
+    .slice(0, 30);
+
+  const isolatedInternal = files.filter((f) => (incoming.get(f) || 0) === 0 && (outgoing.get(f) || 0) === 0).length;
+
+  const filesIndex = [...files]
+    .map((f) => ({
+      path: rel(f),
+      loc: fileLoc.get(f) || 0,
+      ext: path.extname(f) || "—",
+      importers: incoming.get(f) || 0,
+      importees: outgoing.get(f) || 0,
+    }))
+    .sort((a, b) => b.loc - a.loc)
+    .slice(0, FILES_INDEX_CAP);
+
+  return {
+    summary: {
+      files: files.length,
+      internalEdges: fileEdges.length,
+      externalRefs,
+      uniquePackages: externalCounts.size,
+      loc: [...fileLoc.values()].reduce((a, b) => a + b, 0),
+      isolatedInternalFiles: isolatedInternal,
+    },
+    topFilesByLoc,
+    topImported,
+    hubs,
+    zeroInternalImporters,
+    filesIndex,
+    filesIndexCap: FILES_INDEX_CAP,
+    filesIndexTruncated: files.length > FILES_INDEX_CAP,
+  };
+}
+
 async function scanProject(root, opts = {}) {
-  const maxDepth = Math.max(1, Math.min(5, Number(opts.maxDepth ?? 3))); // keep UI readable
-  const files = await walk(root);
+  const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : () => {};
+  const maxDepth = Math.max(1, Math.min(5, Number(opts.maxDepth ?? 3)));
+
+  let st;
+  try {
+    st = await fs.promises.stat(root);
+  } catch (e) {
+    const err = new Error(`cannot access project root: ${root}`);
+    err.code = "EROOT";
+    err.cause = e;
+    throw err;
+  }
+  if (!st.isDirectory()) {
+    const err = new Error(`not a directory: ${root}`);
+    err.code = "ENOTDIR";
+    throw err;
+  }
+
+  const codeExtSet = mergeCodeExtensions(opts.includeExt);
+  let ignoreMatchers = opts.ignoreMatchers;
+  if (ignoreMatchers === undefined) {
+    ignoreMatchers = await loadRealityMapIgnore(root);
+  }
+
+  onProgress({ phase: "discover" });
+  const files = await walk(root, { ignoreMatchers, codeExtSet });
+  onProgress({ phase: "discovered", files: files.length });
   const fileSet = new Set(files);
 
-  const fileEdges = []; // [from, to]
-  const fileImports = new Map(); // file -> imports[]
+  const fileEdges = [];
+  const fileImports = new Map();
   const externalCounts = new Map();
 
   let totalLoc = 0;
   const fileLoc = new Map();
 
+  onProgress({ phase: "parse_imports", files: files.length });
   await Promise.all(files.map(async (f) => {
     let src;
     try { src = await fs.promises.readFile(f, "utf8"); } catch { return; }
@@ -141,7 +336,7 @@ async function scanProject(root, opts = {}) {
     fileImports.set(f, specs);
     for (const s of specs) {
       if (s.startsWith(".") || s.startsWith("/")) {
-        const tgt = resolveRel(f, s, fileSet);
+        const tgt = resolveRel(f, s, fileSet, codeExtSet);
         if (tgt && tgt !== f) fileEdges.push([f, tgt]);
       } else if (!s.startsWith("@/") && !s.startsWith("~/")) {
         const pkg = s.startsWith("@") ? s.split("/").slice(0, 2).join("/") : s.split("/")[0];
@@ -149,14 +344,16 @@ async function scanProject(root, opts = {}) {
       }
     }
   }));
+  onProgress({ phase: "parsed" });
+
+  const insights = buildInsights(root, files, fileEdges, fileLoc, externalCounts);
 
   const topExternal = [...externalCounts.entries()]
-    .sort((a, b) => b[1] - a[1]).slice(0, 12)
+    .sort((a, b) => b[1] - a[1]).slice(0, 20)
     .map(([name, count]) => ({ name, count }));
 
   function buildGraphForDepth(depth) {
-    // Aggregate to modules
-    const modFiles = new Map(); // module -> Set(files)
+    const modFiles = new Map();
     for (const f of files) {
       const rel = path.relative(root, f);
       const mod = moduleOf(rel, depth);
@@ -167,7 +364,7 @@ async function scanProject(root, opts = {}) {
     const fileToMod = new Map();
     for (const [m, set] of modFiles) for (const f of set) fileToMod.set(f, m);
 
-    const edgeWeights = new Map(); // "a|b" -> count
+    const edgeWeights = new Map();
     for (const [a, b] of fileEdges) {
       const ma = fileToMod.get(a), mb = fileToMod.get(b);
       if (!ma || !mb || ma === mb) continue;
@@ -184,13 +381,18 @@ async function scanProject(root, opts = {}) {
     }
     const cycles = detectCycles(new Map([...adj].map(([k, v]) => [k, [...v]])));
 
-    // Layout: simple layered-by-fan-in
     const fanIn = new Map();
-    for (const m of modFiles.keys()) fanIn.set(m, 0);
-    for (const k of edgeWeights.keys()) {
-      const [, b] = k.split("|");
-      fanIn.set(b, (fanIn.get(b) || 0) + 1);
+    const fanOut = new Map();
+    for (const m of modFiles.keys()) {
+      fanIn.set(m, 0);
+      fanOut.set(m, 0);
     }
+    for (const k of edgeWeights.keys()) {
+      const [a, b] = k.split("|");
+      fanIn.set(b, (fanIn.get(b) || 0) + 1);
+      fanOut.set(a, (fanOut.get(a) || 0) + 1);
+    }
+
     const sortedMods = [...modFiles.keys()].sort((a, b) => (fanIn.get(a) - fanIn.get(b)) || a.localeCompare(b));
     const cols = 4;
     const colW = 280, rowH = 150;
@@ -202,6 +404,7 @@ async function scanProject(root, opts = {}) {
       const filesInMod = set.size;
       const loc = [...set].reduce((a, f) => a + (fileLoc.get(f) || 0), 0);
       const col = i % cols, row = Math.floor(i / cols);
+      const relPaths = [...set].map((f) => path.relative(root, f).split(path.sep).join("/")).sort();
       return {
         id: m,
         label: m,
@@ -212,6 +415,9 @@ async function scanProject(root, opts = {}) {
         y: 60 + row * rowH,
         files: filesInMod,
         loc,
+        fanIn: fanIn.get(m) || 0,
+        fanOut: fanOut.get(m) || 0,
+        pathsPreview: relPaths.slice(0, 10),
       };
     });
 
@@ -237,9 +443,11 @@ async function scanProject(root, opts = {}) {
     };
   }
 
+  onProgress({ phase: "building_graphs", maxDepth });
   const graphsByDepth = {};
   for (let depth = 1; depth <= maxDepth; depth++) {
     graphsByDepth[depth] = buildGraphForDepth(depth);
+    onProgress({ phase: "depth_ready", depth });
   }
 
   return {
@@ -251,6 +459,8 @@ async function scanProject(root, opts = {}) {
     },
     graphsByDepth,
     maxDepth,
+    insights,
+    scannedFilePaths: files.map((f) => path.relative(root, f).split(path.sep).join("/")).sort(),
   };
 }
 
