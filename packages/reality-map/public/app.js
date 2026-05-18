@@ -1720,16 +1720,24 @@
     const tbody       = document.querySelector("#tbl-deps tbody");
     const ecosystem   = document.getElementById("deps-ecosystem");
     const auditNotice = document.getElementById("deps-audit-notice");
-
     if (!summary || !tbody) return;
 
     if (!_depsCache || forceRefresh) {
-      summary.innerHTML = "<span class='dim'>Analyzing dependencies…</span>";
-      tbody.innerHTML = "";
+      summary.innerHTML = "";
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align:center;padding:56px 0">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:14px">
+              <div class="deps-spinner"></div>
+              <div style="color:var(--muted);font-size:13px">Analyzing dependencies…</div>
+              <div style="color:var(--muted);font-size:11px;opacity:0.6">Running npm audit &amp; outdated checks</div>
+            </div>
+          </td>
+        </tr>`;
       try {
         _depsCache = await fetch("/api/deps").then(r => r.json());
       } catch {
-        summary.innerHTML = "<span class='dim'>Failed to load dependency data.</span>";
+        tbody.innerHTML = `<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">Failed to load dependency data.</td></tr>`;
         return;
       }
     }
