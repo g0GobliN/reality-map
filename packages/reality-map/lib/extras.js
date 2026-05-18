@@ -26,9 +26,7 @@ function readPkgDeps(root) {
 function unusedDeps(scan, root) {
   const declared = readPkgDeps(root);
   if (!declared) return null;
-  const used = new Set((scan.graphsByDepth?.[1]?.topExternal || []).map((x) => x.name));
-  // topExternal is capped — also extract from any cached map if present
-  const usedAll = new Set(used);
+  const usedAll = new Set((scan.insights?.externalPackages || []).map((x) => x.name));
   // Heuristic: also consider package names that match scan-summary uniquePackages via graph nodes — but topExternal is what we have.
   const SAFE = new Set([
     "typescript", "vite", "@vitejs/plugin-react", "eslint", "prettier",
