@@ -1,7 +1,7 @@
-@import "tailwindcss" source(none);
-@source "../src";
+@import "tailwindcss";
 @import "tw-animate-css";
 @import "reactflow/dist/style.css";
+@source "../src";
 
 @custom-variant dark (&:is(.dark *));
 
