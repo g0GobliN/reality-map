@@ -1,0 +1,25 @@
+{
+  "name": "reality-map",
+  "version": "0.1.0",
+  "description": "Visual architecture explorer for AI-generated codebases. Run locally — zero upload.",
+  "bin": {
+    "reality-map": "bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "public",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "architecture",
+    "visualization",
+    "dependency-graph",
+    "ast",
+    "developer-tools"
+  ],
+  "license": "MIT"
+}
