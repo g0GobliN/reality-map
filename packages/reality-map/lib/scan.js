@@ -3,6 +3,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { execSync } = require("child_process");
 
 const IGNORE_DIRS = new Set([
   "node_modules", ".git", ".next", ".turbo", ".cache", "dist", "build",
@@ -142,13 +143,23 @@ async function walk(root, opts = {}) {
 
 const IMPORT_RE = /(?:import|export)\s+(?:[^'"`;]*?\sfrom\s+)?["']([^"']+)["']|require\(\s*["']([^"']+)["']\s*\)|import\(\s*["']([^"']+)["']\s*\)|from\s+([^"'\s]+)\s+import\s+[^;]+|import\s+([^"'\s]+)|use\s+([^;]+);|import\s*\(\s*[^)]*\)/g;
 
-function extractImports(src) {
+function extractImports(src, filePath = "") {
+  const ext = path.extname(filePath).toLowerCase();
+  const isJsLike = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"].includes(ext);
+
   const found = new Set();
   const details = [];
   let m;
   IMPORT_RE.lastIndex = 0;
+
   while ((m = IMPORT_RE.exec(src))) {
     let spec = m[1] || m[2] || m[3] || m[4] || m[5] || m[6];
+
+    // Group 5 is the generic 'import identifier' (e.g. Python 'import math')
+    // In JS/TS, this pattern is usually a false positive inside a string or comment
+    // unless it's followed by 'from' (handled by group 1) or is a side-effect import (handled by group 1).
+    if (m[5] && isJsLike) continue;
+
     if (m[7]) {
       // Go import block: extract individual imports
       const block = m[7];
@@ -161,7 +172,11 @@ function extractImports(src) {
       }
       continue;
     }
+
     if (spec) {
+      // Basic sanitization: if it looks like it has quotes or weird chars, skip it
+      if (spec.includes('"') || spec.includes("'") || spec.includes("`")) continue;
+
       found.add(spec);
       const lineNum = src.substring(0, m.index).split('\n').length;
       details.push({ spec, line: lineNum, statement: m[0] });
@@ -173,7 +188,7 @@ function extractImports(src) {
 function extractFunctionsAndClasses(src, filePath) {
   const items = [];
   const ext = path.extname(filePath).toLowerCase();
-  
+
   // Function declarations: function name(...) or async function name(...)
   const funcRe = /(?:async\s+)?function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g;
   let m;
@@ -181,21 +196,21 @@ function extractFunctionsAndClasses(src, filePath) {
     const line = src.substring(0, m.index).split('\n').length;
     items.push({ type: 'function', name: m[1], line });
   }
-  
+
   // Arrow functions: const/let/var name = (...) =>
   const arrowRe = /(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>/g;
   while ((m = arrowRe.exec(src))) {
     const line = src.substring(0, m.index).split('\n').length;
     items.push({ type: 'function', name: m[1], line });
   }
-  
+
   // Class declarations: class Name
   const classRe = /class\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g;
   while ((m = classRe.exec(src))) {
     const line = src.substring(0, m.index).split('\n').length;
     items.push({ type: 'class', name: m[1], line });
   }
-  
+
   // TypeScript interfaces: interface Name
   if (['.ts', '.tsx'].includes(ext)) {
     const interfaceRe = /interface\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g;
@@ -203,7 +218,7 @@ function extractFunctionsAndClasses(src, filePath) {
       const line = src.substring(0, m.index).split('\n').length;
       items.push({ type: 'interface', name: m[1], line });
     }
-    
+
     // TypeScript types: type Name =
     const typeRe = /type\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=/g;
     while ((m = typeRe.exec(src))) {
@@ -211,7 +226,7 @@ function extractFunctionsAndClasses(src, filePath) {
       items.push({ type: 'type', name: m[1], line });
     }
   }
-  
+
   // Python functions and classes
   if (ext === '.py') {
     const pyFuncRe = /def\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
@@ -219,14 +234,14 @@ function extractFunctionsAndClasses(src, filePath) {
       const line = src.substring(0, m.index).split('\n').length;
       items.push({ type: 'function', name: m[1], line });
     }
-    
+
     const pyClassRe = /class\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
     while ((m = pyClassRe.exec(src))) {
       const line = src.substring(0, m.index).split('\n').length;
       items.push({ type: 'class', name: m[1], line });
     }
   }
-  
+
   // Go functions and types
   if (ext === '.go') {
     const goFuncRe = /func\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
@@ -234,14 +249,14 @@ function extractFunctionsAndClasses(src, filePath) {
       const line = src.substring(0, m.index).split('\n').length;
       items.push({ type: 'function', name: m[1], line });
     }
-    
+
     const goTypeRe = /type\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
     while ((m = goTypeRe.exec(src))) {
       const line = src.substring(0, m.index).split('\n').length;
       items.push({ type: 'type', name: m[1], line });
     }
   }
-  
+
   // Rust functions, structs, enums
   if (ext === '.rs') {
     const rsFuncRe = /fn\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
@@ -249,20 +264,20 @@ function extractFunctionsAndClasses(src, filePath) {
       const line = src.substring(0, m.index).split('\n').length;
       items.push({ type: 'function', name: m[1], line });
     }
-    
+
     const rsStructRe = /struct\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
     while ((m = rsStructRe.exec(src))) {
       const line = src.substring(0, m.index).split('\n').length;
       items.push({ type: 'struct', name: m[1], line });
     }
-    
+
     const rsEnumRe = /enum\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
     while ((m = rsEnumRe.exec(src))) {
       const line = src.substring(0, m.index).split('\n').length;
       items.push({ type: 'enum', name: m[1], line });
     }
   }
-  
+
   return items;
 }
 
@@ -277,6 +292,79 @@ function resolveRel(fromFile, spec, allFiles, codeExtSet) {
   ];
   for (const c of candidates) if (allFiles.has(c)) return c;
   return null;
+}
+
+function loadAliases(root) {
+  // Returns a map of alias prefix → absolute directory, e.g. {"@/" => "/project/src/"}
+  const aliases = new Map();
+  for (const cfg of ["tsconfig.json", "jsconfig.json"]) {
+    try {
+      const raw = fs.readFileSync(path.join(root, cfg), "utf8");
+      // Strip JS comments before parsing
+      const stripped = raw.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+      const json = JSON.parse(stripped);
+      const tsPaths = json.compilerOptions?.paths || {};
+      const baseUrl = json.compilerOptions?.baseUrl
+        ? path.resolve(root, json.compilerOptions.baseUrl)
+        : root;
+      for (const [alias, targets] of Object.entries(tsPaths)) {
+        if (!Array.isArray(targets) || !targets.length) continue;
+        // e.g. "@/*" → ["./src/*"] ; strip the trailing /*
+        const prefix = alias.endsWith("/*") ? alias.slice(0, -1) : alias;
+        const target = targets[0].endsWith("/*") ? targets[0].slice(0, -1) : targets[0];
+        aliases.set(prefix, path.resolve(baseUrl, target));
+      }
+      break; // use first config found
+    } catch { }
+  }
+  // Fallback: if "@" not already mapped, try src/ then root
+  if (!aliases.has("@/")) {
+    const srcDir = path.join(root, "src");
+    try {
+      if (fs.statSync(srcDir).isDirectory()) aliases.set("@/", srcDir);
+    } catch { }
+    if (!aliases.has("@/")) aliases.set("@/", root);
+  }
+  if (!aliases.has("~/")) aliases.set("~/", root);
+  return aliases;
+}
+
+function resolveAlias(spec, aliases, allFiles, codeExtSet) {
+  const extSet = codeExtSet instanceof Set ? codeExtSet : CODE_EXT;
+  for (const [prefix, dir] of aliases) {
+    if (!spec.startsWith(prefix)) continue;
+    const rest = spec.slice(prefix.length);
+    const base = path.join(dir, rest);
+    const candidates = [
+      base,
+      ...[...extSet].map((e) => base + e),
+      ...[...extSet].map((e) => path.join(base, "index" + e)),
+    ];
+    for (const c of candidates) if (allFiles.has(c)) return c;
+  }
+  return null;
+}
+
+function getGitTimestamps(root) {
+  const times = new Map();
+  try {
+    // This command outputs: [timestamp] \n [filename] \n ...
+    const out = execSync('git log --format="%at" --name-only', { cwd: root, stdio: ['pipe', 'pipe', 'ignore'], encoding: 'utf8', maxBuffer: 1024 * 1024 * 10 });
+    const lines = out.split('\n');
+    let curTime = 0;
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t) continue;
+      if (/^\d+$/.test(t)) {
+        curTime = parseInt(t, 10);
+      } else {
+        if (!times.has(t)) times.set(t, curTime);
+      }
+    }
+  } catch (e) {
+    // Not a git repo or git not found, ignore
+  }
+  return times;
 }
 
 function moduleOf(rel, depth) {
@@ -294,7 +382,7 @@ function moduleOf(rel, depth) {
   }
 
   const segs = dirs.slice(0, d);
-  return segs.length ? segs.join("/") : "(root)";
+  return segs.length ? segs.join("/") : "(Project Root)";
 }
 
 const TONE_BY_HINT = [
@@ -407,7 +495,7 @@ function buildInsights(root, files, fileEdges, fileLoc, externalCounts) {
 }
 
 async function scanProject(root, opts = {}) {
-  const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : () => {};
+  const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : () => { };
   const maxDepth = Math.max(1, Math.min(5, Number(opts.maxDepth ?? 3)));
 
   let st;
@@ -426,6 +514,7 @@ async function scanProject(root, opts = {}) {
   }
 
   const codeExtSet = mergeCodeExtensions(opts.includeExt);
+  const aliases = loadAliases(root);
   let ignoreMatchers = opts.ignoreMatchers;
   if (ignoreMatchers === undefined) {
     ignoreMatchers = await loadRealityMapIgnore(root);
@@ -435,6 +524,7 @@ async function scanProject(root, opts = {}) {
   const files = await walk(root, { ignoreMatchers, codeExtSet });
   onProgress({ phase: "discovered", files: files.length });
   const fileSet = new Set(files);
+  const gitTimes = getGitTimestamps(root);
 
   const fileEdges = [];
   const fileImports = new Map();
@@ -443,27 +533,60 @@ async function scanProject(root, opts = {}) {
 
   let totalLoc = 0;
   const fileLoc = new Map();
+  const fileGit = new Map();
+
+  // Resolve <script src> in HTML files so browser entry points get incoming edges
+  const HTML_SCRIPT_RE = /<script[^>]+src=["']([^"']+)["']/gi;
+  const WEB_ASSET_DIRS = new Set(["public", "static", "assets"]);
+  try {
+    const htmlFiles = await walk(root, { ignoreMatchers, codeExtSet: new Set([".html"]) });
+    for (const hf of htmlFiles) {
+      let hsrc;
+      try { hsrc = await fs.promises.readFile(hf, "utf8"); } catch { continue; }
+      let m;
+      while ((m = HTML_SCRIPT_RE.exec(hsrc)) !== null) {
+        const src = m[1];
+        if (src.startsWith("http://") || src.startsWith("https://") || src.startsWith("//")) continue;
+        const tgt = resolveRel(hf, src.startsWith("/") ? path.join(root, src) : src.startsWith(".")
+          ? src
+          : "./" + src, fileSet, codeExtSet)
+          || (() => {
+            const abs = path.resolve(path.dirname(hf), src.startsWith("/") ? path.join(root, src) : src);
+            return fileSet.has(abs) ? abs : null;
+          })();
+        if (tgt && tgt !== hf) fileEdges.push([hf, tgt]);
+      }
+    }
+  } catch { }
 
   onProgress({ phase: "parse_imports", files: files.length });
   await Promise.all(files.map(async (f) => {
+    const rel = path.relative(root, f).split(path.sep).join("/");
     let src;
     try { src = await fs.promises.readFile(f, "utf8"); } catch { return; }
     const loc = src.split("\n").length;
     fileLoc.set(f, loc); totalLoc += loc;
-    
-    const importData = extractImports(src);
+
+    fileGit.set(f, gitTimes.get(rel) || 0);
+
+    const importData = extractImports(src, f);
     fileImports.set(f, importData);
-    
+
     const symbols = extractFunctionsAndClasses(src, f);
     fileSymbols.set(f, symbols);
-    
+
     for (const s of importData.specs) {
       if (s.startsWith(".") || s.startsWith("/")) {
         const tgt = resolveRel(f, s, fileSet, codeExtSet);
         if (tgt && tgt !== f) fileEdges.push([f, tgt]);
-      } else if (!s.startsWith("@/") && !s.startsWith("~/")) {
-        const pkg = s.startsWith("@") ? s.split("/").slice(0, 2).join("/") : s.split("/")[0];
-        externalCounts.set(pkg, (externalCounts.get(pkg) || 0) + 1);
+      } else {
+        const tgt = resolveAlias(s, aliases, fileSet, codeExtSet);
+        if (tgt && tgt !== f) {
+          fileEdges.push([f, tgt]);
+        } else {
+          const pkg = s.startsWith("@") ? s.split("/").slice(0, 2).join("/") : s.split("/")[0];
+          externalCounts.set(pkg, (externalCounts.get(pkg) || 0) + 1);
+        }
       }
     }
   }));
@@ -478,7 +601,7 @@ async function scanProject(root, opts = {}) {
   function buildGraphForDepth(depth) {
     const modFiles = new Map();
     for (const f of files) {
-      const rel = path.relative(root, f);
+      const rel = path.relative(root, f).split(path.sep).join("/");
       const mod = moduleOf(rel, depth);
       if (!modFiles.has(mod)) modFiles.set(mod, new Set());
       modFiles.get(mod).add(f);
@@ -488,11 +611,14 @@ async function scanProject(root, opts = {}) {
     for (const [m, set] of modFiles) for (const f of set) fileToMod.set(f, m);
 
     const edgeWeights = new Map();
+    const moduleEdgesFiles = new Map();
     for (const [a, b] of fileEdges) {
       const ma = fileToMod.get(a), mb = fileToMod.get(b);
       if (!ma || !mb || ma === mb) continue;
       const k = ma + "|" + mb;
       edgeWeights.set(k, (edgeWeights.get(k) || 0) + 1);
+      if (!moduleEdgesFiles.has(k)) moduleEdgesFiles.set(k, new Set());
+      moduleEdgesFiles.get(k).add(a); // File 'a' is the one importing something from 'mb'
     }
 
     const adj = new Map();
@@ -516,32 +642,98 @@ async function scanProject(root, opts = {}) {
       fanOut.set(a, (fanOut.get(a) || 0) + 1);
     }
 
+    const fileIncoming = new Map();
+    for (const [a, b] of fileEdges) {
+      fileIncoming.set(b, (fileIncoming.get(b) || 0) + 1);
+    }
+
     const sortedMods = [...modFiles.keys()].sort((a, b) => (fanIn.get(a) - fanIn.get(b)) || a.localeCompare(b));
     const cols = 4;
     const colW = 280, rowH = 150;
     const inCycle = new Set();
-    for (const cy of cycles) for (const n of cy) inCycle.add(n);
+    const cycleCulprits = new Map(); // mod -> Set of file paths
+
+    for (const cy of cycles) {
+      for (let i = 0; i < cy.length - 1; i++) {
+        const ma = cy[i], mb = cy[i + 1];
+        inCycle.add(ma);
+        const k = ma + "|" + mb;
+        if (moduleEdgesFiles.has(k)) {
+          if (!cycleCulprits.has(ma)) cycleCulprits.set(ma, new Set());
+          for (const f of moduleEdgesFiles.get(k)) cycleCulprits.get(ma).add(f);
+        }
+      }
+    }
 
     const nodes = sortedMods.map((m, i) => {
       const set = modFiles.get(m) || new Set();
       const filesInMod = set.size;
       const loc = [...set].reduce((a, f) => a + (fileLoc.get(f) || 0), 0);
+      const lastModified = [...set].reduce((a, f) => Math.max(a, fileGit.get(f) || 0), 0);
+
       const col = i % cols, row = Math.floor(i / cols);
       const relPaths = [...set].map((f) => path.relative(root, f).split(path.sep).join("/")).sort();
+
+      const isConfigOnly = [...set].every(f => {
+        const bn = path.basename(f).toLowerCase();
+        return bn.includes('config.') || bn.startsWith('.') || bn === 'package.json' || bn === 'readme.md' || bn === 'license';
+      });
+
+      const isOrphan = fanIn.get(m) === 0 && fanOut.get(m) === 0;
+      const isEntry = fanIn.get(m) === 0 && fanOut.get(m) > 0;
+
+      let warnMsg = null;
+      let infoMsg = null;
+
+      if (inCycle.has(m)) {
+        warnMsg = "Circular Dependency (Loop): These modules depend on each other in a circle (A -> B -> A). This 'tangled knot' makes it hard to change one without breaking the other.";
+      } else if (isOrphan && m !== "(Project Root)" && !isConfigOnly) {
+        warnMsg = "Isolated Module (Island): This folder is not connected to the rest of your app. No other parts of the app are using it, and it doesn't use anything outside itself.";
+      }
+
+      if (loc > 2000) {
+        infoMsg = "Giant Module: This file is very large. Consider breaking it into smaller, more manageable pieces.";
+      } else if (isEntry) {
+        infoMsg = "Entry Point: This is one of the starting points of your application.";
+      }
+
+      const fileIssues = {};
+      for (const f of set) {
+        const relF = path.relative(root, f).split(path.sep).join("/");
+        const issues = [];
+        if (cycleCulprits.has(m) && cycleCulprits.get(m).has(f)) {
+          issues.push("cycle-bridge");
+        }
+        const relParts = path.relative(root, f).split(path.sep);
+        const inWebAssetDir = relParts.some((p) => WEB_ASSET_DIRS.has(p));
+        const ext = path.extname(f).toLowerCase();
+        const canDetectDead = new Set([".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".vue", ".svelte", ".astro"]).has(ext);
+        if (isOrphan && !isConfigOnly && !inWebAssetDir && canDetectDead && !(fileIncoming.get(f) > 0)) {
+          issues.push("dead-code");
+        }
+        if (issues.length) fileIssues[relF] = issues;
+      }
+
       return {
         id: m,
         label: m,
         sub: `${filesInMod} files · ${loc} loc`,
-        tone: inCycle.has(m) ? "rose" : toneFor(m),
-        warn: inCycle.has(m),
-        warnMsg: inCycle.has(m) ? "Circular dependency detected" : null,
+        tone: inCycle.has(m) ? "rose" : isOrphan ? "amber" : toneFor(m),
+        warn: inCycle.has(m) || isOrphan,
+        warnMsg,
+        infoMsg,
+        isOrphan,
+        isEntry,
         x: 60 + col * colW,
         y: 60 + row * rowH,
         files: filesInMod,
         loc,
+        lastModified,
         fanIn: fanIn.get(m) || 0,
         fanOut: fanOut.get(m) || 0,
-        pathsPreview: relPaths.slice(0, 10),
+        pathsPreview: relPaths.slice(0, 100),
+        allPaths: relPaths,
+        fileIssues
       };
     });
 
@@ -589,6 +781,7 @@ async function scanProject(root, opts = {}) {
       imports: Object.fromEntries([...fileImports.entries()].map(([k, v]) => [path.relative(root, k).split(path.sep).join("/"), v])),
       symbols: Object.fromEntries([...fileSymbols.entries()].map(([k, v]) => [path.relative(root, k).split(path.sep).join("/"), v])),
       loc: Object.fromEntries([...fileLoc.entries()].map(([k, v]) => [path.relative(root, k).split(path.sep).join("/"), v])),
+      lastModified: Object.fromEntries([...fileGit.entries()].map(([k, v]) => [path.relative(root, k).split(path.sep).join("/"), v])),
     },
   };
 }

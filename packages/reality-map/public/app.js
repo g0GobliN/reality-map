@@ -38,6 +38,9 @@
   const drawerWarn = document.getElementById("drawer-warn");
   const edgeTooltip = document.getElementById("edge-tooltip");
   const layout = document.getElementById("view-map");
+  const helpModal = document.getElementById("help-modal");
+  const helpBtn = document.getElementById("help-btn");
+  const helpClose = document.getElementById("help-close");
 
   // ── State ─────────────────────────────────────────────────────
   let meta = await fetch("/api/meta").then((r) => r.json());
@@ -52,11 +55,12 @@
 
   let selected = null;
   let stack = [];
-  let view = { x: 0, y: 0, k: 1, depth: 1, prefix: null };
+  let view = { x: 0, y: 0, k: 1, depth: Number(localStorage.getItem("rm-depth")) || 1, prefix: null };
   let currentViewGraph = null;
   let activeTab = "map";
   let drawerData = null; // { type: 'module'|'file', id }
   let allSymbols = []; // for symbol search filtering
+  let mapMode = localStorage.getItem("rm-mode") || "arch"; // arch | activity | blast
 
   // ── Depth select ──────────────────────────────────────────────
   function fillDepthSelect() {
@@ -64,7 +68,7 @@
     for (let d = 1; d <= maxDepth; d++) {
       const o = document.createElement("option");
       o.value = String(d);
-      o.textContent = "Depth " + d;
+      o.textContent = "Level " + d;
       depthSelect.appendChild(o);
     }
     depthSelect.value = String(view.depth);
@@ -73,6 +77,7 @@
 
   depthSelect.addEventListener("change", () => {
     view.depth = Number(depthSelect.value);
+    localStorage.setItem("rm-depth", view.depth);
     view.prefix = null;
     stack = [];
     selected = null;
@@ -81,6 +86,67 @@
 
   moduleSort.addEventListener("change", () => render());
   moduleFilter.addEventListener("input", () => render());
+  document.getElementById("map-mode").addEventListener("change", (e) => {
+    mapMode = e.target.value;
+    localStorage.setItem("rm-mode", mapMode);
+    document.getElementById("map-mode").value = mapMode;
+    render();
+  });
+  document.getElementById("map-mode").value = mapMode;
+
+  function getBlastRadius(moduleId, graph) {
+    if (!moduleId) return new Set();
+    const visited = new Set([moduleId]);
+    const queue = [moduleId];
+    while (queue.length) {
+      const curr = queue.shift();
+      graph.edges.forEach((e) => {
+        if (e.target === curr && !visited.has(e.source)) {
+          visited.add(e.source);
+          queue.push(e.source);
+        }
+      });
+    }
+    return visited;
+  }
+
+  function getModuleColor(n, mode, blastSet) {
+    if (mode === "activity") {
+      if (!n.lastModified) return "#334155";
+      const now = Date.now() / 1000;
+      const age = now - n.lastModified;
+      if (age < 7 * 24 * 3600) return "#f43f5e"; // rose-500
+      if (age < 28 * 24 * 3600) return "#f59e0b"; // amber-500
+      return "#10b981"; // emerald-500
+    }
+    if (mode === "blast") {
+      if (selected === n.id) return "#f43f5e";
+      if (blastSet && blastSet.has(n.id)) return "#f59e0b";
+      return "#334155";
+    }
+    return TONE[n.tone] || TONE.cyan;
+  }
+
+  function updateLegend() {
+    const legend = document.getElementById("map-legend");
+    if (!legend) return;
+    if (mapMode === "arch") {
+      legend.innerHTML = "";
+    } else if (mapMode === "activity") {
+      legend.innerHTML = `
+        <div style="display:flex; gap:8px; align-items:center">
+          <span style="width:8px; height:8px; border-radius:50%; background:#f43f5e"></span> &lt; 1wk
+          <span style="width:8px; height:8px; border-radius:50%; background:#f59e0b"></span> &lt; 4wks
+          <span style="width:8px; height:8px; border-radius:50%; background:#10b981"></span> Stable
+        </div>`;
+    } else if (mapMode === "blast") {
+      legend.innerHTML = `
+        <div style="display:flex; gap:8px; align-items:center">
+          <span style="width:8px; height:8px; border-radius:50%; background:#f43f5e"></span> Target
+          <span style="width:8px; height:8px; border-radius:50%; background:#f59e0b"></span> Affected
+        </div>`;
+    }
+  }
 
   // ── Tabs ──────────────────────────────────────────────────────
   function setTab(tab) {
@@ -162,6 +228,13 @@
   }
   drawerClose.addEventListener("click", closeDrawer);
 
+  function toggleHelp() {
+    helpModal.hidden = !helpModal.hidden;
+  }
+  helpBtn.onclick = toggleHelp;
+  helpClose.onclick = toggleHelp;
+  helpModal.onclick = (e) => { if (e.target === helpModal) toggleHelp(); };
+
   function renderDrawerBreadcrumb() {
     const bc = document.getElementById("drawer-breadcrumb");
     if (!bc) return;
@@ -192,7 +265,7 @@
     bc.appendChild(cur);
   }
 
-  async function showModuleDrawer(moduleId, pushToStack = true) {
+  async function showModuleDrawer(moduleId, pushToStack = true, atDepth) {
     if (pushToStack && drawerData) {
       drawerStack.push({
         type: drawerData.type,
@@ -201,7 +274,7 @@
       });
     }
     drawerData = { type: "module", id: moduleId };
-    const depth = view.depth;
+    const depth = atDepth ?? view.depth;
     const graph = getDepthGraph(depth);
     const node = graph.nodes.find((n) => n.id === moduleId);
     if (!node) return;
@@ -214,7 +287,18 @@
     renderDrawerBreadcrumb();
 
     if (node.warn) {
-      drawerWarn.innerHTML = `<h4>Warning</h4><p>${node.warnMsg || "Circular dependency detected"}</p>`;
+      const isIsolated = node.isOrphan;
+      drawerWarn.innerHTML = `<h4>⚠️ Architecture Alert</h4>
+        <p><strong>What's the issue?</strong> ${node.warnMsg || "Circular dependency detected"}</p>
+        <div class="alert-explanation" style="margin-top:12px; padding:12px; background:rgba(0,0,0,0.25); border-radius:8px; border-left:4px solid ${isIsolated ? '#fbbf24' : '#fb7185'}">
+          <p style="font-size:0.95em; margin-bottom:8px; color:var(--foreground)"><strong>Simple Explanation:</strong></p>
+          <p style="font-size:0.85em; line-height:1.5; color:var(--muted)">
+            ${isIsolated
+          ? "This folder is like an <strong>'Abandoned Island'</strong>. The code inside might be perfectly fine, but since no other part of your app is using it, it's just 'isolated'. If you aren't using it anymore, it might be safe to delete!"
+          : "This is a <strong>'Tangled Knot'</strong>. These parts of your code are stuck in a loop (A needs B, B needs A). This makes it very hard to change things because a small fix in one place might loop back and break something else."
+        }
+          </p>
+        </div>`;
       drawerWarn.hidden = false;
     } else {
       drawerWarn.hidden = true;
@@ -226,27 +310,76 @@
       filesData = await fetch(
         `/api/module/${encodeURIComponent(moduleId)}/files?depth=${depth}`,
       ).then((r) => r.json());
-    } catch {}
+    } catch { }
 
     // Build file list
     drawerFiles.innerHTML = `<h4>Files in module</h4>`;
+
+    // Prominent issue summary banner using node.fileIssues (already in graph data)
+    const nodeFileIssues = node.fileIssues || {};
+    const issueEntries = Object.entries(nodeFileIssues);
+    const cycleFiles = issueEntries.filter(([, v]) => v.includes("cycle-bridge"));
+    const deadFiles = issueEntries.filter(([, v]) => v.includes("dead-code"));
+    if (issueEntries.length > 0) {
+      const bannerEl = document.createElement("div");
+      bannerEl.style.cssText = "margin-bottom:10px;padding:10px 12px;border-radius:8px;background:rgba(0,0,0,0.2);border-left:4px solid var(--rose,#fb7185);font-size:0.85em;line-height:1.6";
+      const parts = [];
+      if (cycleFiles.length) parts.push(`<span style="color:${TONE.rose}">⚠ ${cycleFiles.length} cycle bridge${cycleFiles.length > 1 ? "s" : ""}</span>`);
+      if (deadFiles.length) parts.push(`<span style="color:${TONE.amber}">☠ ${deadFiles.length} dead file${deadFiles.length > 1 ? "s" : ""}</span>`);
+      bannerEl.innerHTML = `<strong>Problematic files:</strong> ${parts.join(" · ")}`;
+      drawerFiles.appendChild(bannerEl);
+    }
+
     const fileListEl = document.createElement("div");
     fileListEl.className = "file-list";
 
-    const allPaths = node.pathsPreview || [];
-    allPaths.forEach((p) => {
-      const fd = filesData.files?.find((f) => f.path === p) || {};
+    // Sort: cycle-bridge first, then dead-code, then clean
+    const filesToShow = (filesData.files || []).slice().sort((a, b) => {
+      const rank = (fd) => {
+        const iss = fd.issues || nodeFileIssues[fd.path] || [];
+        if (iss.includes("cycle-bridge")) return 0;
+        if (iss.includes("dead-code")) return 1;
+        return 2;
+      };
+      return rank(a) - rank(b);
+    });
+    filesToShow.forEach((fd) => {
+      const p = fd.path;
       const item = document.createElement("div");
       item.className = "file-item";
-      item.innerHTML = `<span class="fi-dot"></span><span class="fi-path" title="${p}">${p}</span><span class="fi-meta">${fd.loc || "?"} loc · ${(fd.symbols || []).length} sym</span>`;
+      const locDisplay = fd.loc !== undefined ? fd.loc : "?";
+      const symCount = (fd.symbols || []).length;
+      const issues = fd.issues || nodeFileIssues[p] || [];
+
+      // Check if it's a config/meta file to show a subtle hint
+      const isConfig = p.toLowerCase().includes('config.') || p.startsWith('.') || p.toLowerCase() === 'package.json';
+      const configTag = isConfig ? `<span class="fi-meta" style="opacity:0.6;margin-right:4px">[Config]</span>` : '';
+
+      let issueTag = '';
+      let dotColor = 'var(--muted)';
+      if (issues.includes('cycle-bridge')) {
+        issueTag = `<span class="fi-tag" style="background:${TONE.rose}33; color:${TONE.rose}; border: 1px solid ${TONE.rose}66; padding: 0 4px; border-radius: 4px; font-size: 10px; margin-right: 6px;">[Part of Cycle]</span>`;
+        dotColor = TONE.rose;
+        item.classList.add("fi-problem-cycle");
+      } else if (issues.includes('dead-code')) {
+        issueTag = `<span class="fi-tag" style="background:${TONE.amber}33; color:${TONE.amber}; border: 1px solid ${TONE.amber}66; padding: 0 4px; border-radius: 4px; font-size: 10px; margin-right: 6px;">[Dead File]</span>`;
+        dotColor = TONE.amber;
+        item.classList.add("fi-problem-dead");
+      }
+
+      item.innerHTML = `
+        <span class="fi-dot" style="background:${dotColor}"></span>
+        <span class="fi-path" title="${p}">${p}</span>
+        <span class="fi-meta">${issueTag}${configTag}${locDisplay} loc · ${symCount} sym</span>
+      `;
       item.addEventListener("click", () => showFileDrawer(p));
       fileListEl.appendChild(item);
     });
-    if (node.files > allPaths.length) {
+    if (node.files > filesToShow.length) {
       const more = document.createElement("div");
       more.className = "fi-meta dim";
       more.style.padding = "4px 8px";
-      more.textContent = `+ ${node.files - allPaths.length} more files`;
+      more.textContent = `+ ${node.files - filesToShow.length} more files`;
       fileListEl.appendChild(more);
     }
     drawerFiles.appendChild(fileListEl);
@@ -265,11 +398,20 @@
     let data = { path: filePath, imports: { specs: [], details: [] }, symbols: [], loc: 0 };
     try {
       data = await fetch(`/api/file/${encodeURIComponent(filePath)}`).then((r) => r.json());
-    } catch {}
+    } catch { }
 
     drawerTitle.textContent = filePath;
     drawerMeta.textContent = `${data.loc} lines · ${data.symbols.length} symbols · ${data.imports.specs.length} imports`;
-    drawerFiles.innerHTML = "";
+
+    drawerFiles.innerHTML = `
+      <div class="drawer-help-box" style="margin: 0 8px 16px 8px; padding:12px; background:rgba(255,255,255,0.03); border-radius:8px; font-size:0.85em; border:1px solid rgba(255,255,255,0.05)">
+        <strong style="color:var(--cyan)">Quick Guide:</strong><br/>
+        <div style="margin-top:6px; line-height:1.4">
+          • <strong>Symbols:</strong> Things defined <em>inside</em> this file (like functions).<br/>
+          • <strong>Imports:</strong> Other files this file <em>needs</em> to work.
+        </div>
+      </div>
+    `;
     drawerWarn.hidden = true;
     symbolSearch.value = "";
     allSymbols = data.symbols || [];
@@ -307,7 +449,7 @@
             : s.type === "interface"
               ? "if"
               : "T";
-      item.innerHTML = `<span class="sym-badge ${badgeClass}">${badgeLabel}</span><span class="sym-name">${s.name}</span><span class="sym-line">L${s.line}</span>`;
+      item.innerHTML = `<span class="sym-badge ${badgeClass}">${badgeLabel}</span><span class="sym-name">${s.name}</span><span class="sym-line"> (Line ${s.line})</span>`;
       list.appendChild(item);
     });
     drawerSymbols.appendChild(list);
@@ -324,7 +466,7 @@
     details.forEach((imp) => {
       const item = document.createElement("div");
       item.className = "imp-item";
-      item.innerHTML = `<div class="imp-spec">${imp.spec}</div><div class="imp-line">L${imp.line} · <span style="color:var(--muted)">${imp.statement.slice(0, 60)}${imp.statement.length > 60 ? "…" : ""}</span></div>`;
+      item.innerHTML = `<div class="imp-spec">${imp.spec}</div><div class="imp-line"> (Line ${imp.line}) · <span style="color:var(--muted)">${imp.statement.slice(0, 60)}${imp.statement.length > 60 ? "…" : ""}</span></div>`;
       list.appendChild(item);
     });
     drawerImports.appendChild(list);
@@ -388,7 +530,7 @@
         r.json(),
       );
       showSearchResults(data.results || []);
-    } catch {}
+    } catch { }
   });
 
   globalSearch.addEventListener("keydown", (e) => {
@@ -426,12 +568,14 @@
   // ── Module click: drill-in or open drawer at max depth ────────
   function onModuleClick(moduleId) {
     if (view.depth < maxDepth) {
+      const clickedDepth = view.depth;
       stack.push({ prefix: view.prefix, depth: view.depth });
       view.prefix = moduleId;
       view.depth = Math.min(maxDepth, view.depth + 1);
       depthSelect.value = String(view.depth);
       selected = moduleId;
       render();
+      showModuleDrawer(moduleId, true, clickedDepth);
       return;
     }
     // At max depth: toggle selection + open drawer
@@ -479,8 +623,24 @@
       "fan-in " + (n.fanIn ?? 0) + " · fan-out " + (n.fanOut ?? 0),
       "files " + n.files + " · loc " + n.loc,
       "",
-      (n.pathsPreview || []).slice(0, 10).join("\n"),
     ];
+
+    if (mapMode === "blast") {
+      const blast = getBlastRadius(selected, graph);
+      if (blast.size > 1) {
+        lines.push("BLAST RADIUS (" + (blast.size - 1) + " affected):");
+        const affected = Array.from(blast).filter((id) => id !== selected);
+        affected.forEach((id) => {
+          const m = graph.nodes.find((x) => x.id === id);
+          if (m) lines.push("↳ " + m.label);
+        });
+      } else {
+        lines.push("BLAST RADIUS: 0 modules affected");
+      }
+      lines.push("");
+    }
+
+    lines.push((n.pathsPreview || []).slice(0, 10).join("\n"));
     detailPanel.textContent = lines.join("\n");
     detailPanel.className = "detail mono";
   }
@@ -508,16 +668,20 @@
     hud.textContent = `~ ${rootShort}${view.prefix ? " · " + view.prefix : ""} · depth ${view.depth}/${maxDepth}`;
 
     moduleList.innerHTML = "";
+    const blastSet = mapMode === "blast" ? getBlastRadius(selected, graph) : null;
     const sorted = sortModules(filterModules(graph.nodes));
     sorted.forEach((n) => {
       const item = document.createElement("div");
       item.className = "row" + (n.warn ? " warn" : "") + (selected === n.id ? " sel" : "");
-      item.innerHTML = `<span class="dot" style="background:${TONE[n.tone]}"></span>
+      const dotColor = getModuleColor(n, mapMode, blastSet);
+      item.innerHTML = `<span class="dot" style="background:${dotColor}"></span>
         <span class="name">${n.label}</span>
         <span class="num">${n.files}f · ${n.loc} · ⇣${n.fanIn ?? 0}</span>`;
       item.onclick = () => onModuleClick(n.id);
       moduleList.appendChild(item);
     });
+
+    updateLegend();
 
     cycleList.innerHTML =
       graph.cycles.length === 0
@@ -691,12 +855,21 @@
       </marker>
     `;
     svg.appendChild(defs);
-
     const rootG = el("g", { transform: `translate(${view.x} ${view.y}) scale(${view.k})` });
     svg.appendChild(rootG);
 
     const NW = 220,
       NH = 70;
+
+    // Find max LOC for scaling
+    const maxLoc = Math.max(...graph.nodes.map(n => n.loc), 1);
+
+    // Activity / Blast state
+    const now = Date.now() / 1000;
+    const oneWeek = 7 * 24 * 3600;
+
+    let blastSet = mapMode === "blast" ? getBlastRadius(selected, graph) : new Set();
+
     const byId = new Map(graph.nodes.map((n) => [n.id, n]));
     const incidentToSelected = new Set();
     if (selected) {
@@ -710,10 +883,16 @@
       const a = byId.get(e.source),
         b = byId.get(e.target);
       if (!a || !b) return;
-      const x1 = a.x + NW,
-        y1 = a.y + NH / 2;
+
+      // Get source/target node dimensions
+      const aW = NW + Math.min(60, (a.loc / maxLoc) * 100);
+      const aH = NH + Math.min(40, (a.loc / maxLoc) * 60);
+      const bH = NH + Math.min(40, (b.loc / maxLoc) * 60);
+
+      const x1 = a.x + aW,
+        y1 = a.y + aH / 2;
       const x2 = b.x,
-        y2 = b.y + NH / 2;
+        y2 = b.y + bH / 2;
       const cx = (x1 + x2) / 2;
       const d = `M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`;
       const cls = ["edge"];
@@ -756,7 +935,14 @@
       g.dataset.id = n.id;
       g.dataset.moved = "0";
 
-      const accentColor = TONE[n.tone] || TONE.cyan;
+      const accentColor = getModuleColor(n, mapMode, blastSet);
+
+      // Scaling based on LOC
+      const extraW = Math.min(60, (n.loc / maxLoc) * 100);
+      const extraH = Math.min(40, (n.loc / maxLoc) * 60);
+      const curW = NW + extraW;
+      const curH = NH + extraH;
+
       const dimmed =
         selected &&
         selected !== n.id &&
@@ -766,21 +952,23 @@
             (e.target === selected && e.source === n.id),
         );
       g.setAttribute("opacity", dimmed ? "0.35" : "1");
+      if (dimmed) g.style.filter = "grayscale(0.5) blur(0.5px)";
+      else g.style.filter = "none";
 
       g.appendChild(
         el("rect", {
           class: "node-card",
           x: 0,
           y: 0,
-          width: NW,
-          height: NH,
+          width: curW,
+          height: curH,
           rx: 12,
           stroke: accentColor,
           "stroke-opacity": 0.5,
         }),
       );
       g.appendChild(
-        el("rect", { class: "accent", x: 0, y: 0, width: 4, height: NH, rx: 2, fill: accentColor }),
+        el("rect", { class: "accent", x: 0, y: 0, width: 4, height: curH, rx: 2, fill: accentColor }),
       );
 
       const label = el("text", { class: "node-label", x: 16, y: 28 });
@@ -791,12 +979,12 @@
       sub.textContent = n.sub + " · ⇣" + (n.fanIn ?? 0) + " ⇢" + (n.fanOut ?? 0);
       g.appendChild(sub);
 
-      const wbar = Math.max(6, Math.round((n.loc / barMax) * (NW - 32)));
+      const wbar = Math.max(6, Math.round((n.loc / barMax) * (curW - 32)));
       g.appendChild(
         el("rect", {
           x: 16,
-          y: 56,
-          width: NW - 32,
+          y: curH - 14,
+          width: curW - 32,
           height: 3,
           rx: 2,
           fill: "rgba(255,255,255,0.06)",
@@ -805,7 +993,7 @@
       g.appendChild(
         el("rect", {
           x: 16,
-          y: 56,
+          y: curH - 14,
           width: wbar,
           height: 3,
           rx: 2,
@@ -815,7 +1003,7 @@
       );
 
       if (n.warn) {
-        const badge = el("g", { transform: `translate(${NW - 28} 12)`, style: "cursor:help" });
+        const badge = el("g", { transform: `translate(${curW - 28} 12)`, style: "cursor:help" });
         badge.appendChild(
           el("circle", {
             r: 9,
@@ -839,7 +1027,13 @@
         badge.appendChild(t);
 
         badge.addEventListener("mouseenter", (ev) => {
-          edgeTooltip.innerHTML = `<div class="et-title">Warning</div><div class="et-line">${n.warnMsg || "Circular dependency detected"}</div>`;
+          edgeTooltip.innerHTML = `
+            <div class="et-title">⚠️ Architecture Warning</div>
+            <div class="et-line"><strong>Problem:</strong> ${n.warnMsg || "Circular dependency detected"}</div>
+            <div class="et-line" style="margin-top:8px; opacity:0.9; font-size:11px; line-height:1.4">
+              <em>Tip: ${n.isOrphan ? 'This is an "Isolated Island" — it\'s not connected to the rest of your app.' : 'This is a "Tangled Knot" — circular connections make the code harder to maintain.'} Click the node to see more.</em>
+            </div>
+          `;
           edgeTooltip.hidden = false;
           positionEdgeTooltip(ev);
         });
@@ -854,7 +1048,7 @@
       // "Explore" indicator at max depth
       if (view.depth === maxDepth) {
         const exploreHint = el("text", {
-          x: NW - 10,
+          x: curW - 10,
           y: 14,
           "text-anchor": "end",
           "font-size": 9,
@@ -983,10 +1177,15 @@
     // Draw nodes
     graph.nodes.forEach((n) => {
       const rect = document.createElementNS(NS, "rect");
+      const extraW = Math.min(60, (n.loc / (Math.max(...graph.nodes.map(node => node.loc), 1)) * 100));
+      const extraH = Math.min(40, (n.loc / (Math.max(...graph.nodes.map(node => node.loc), 1)) * 60));
+      const curW = 220 + extraW;
+      const curH = 70 + extraH;
+
       rect.setAttribute("x", (n.x - minX) * sc);
       rect.setAttribute("y", (n.y - minY) * sc);
-      rect.setAttribute("width", Math.max(4, 220 * sc));
-      rect.setAttribute("height", Math.max(2, 70 * sc));
+      rect.setAttribute("width", Math.max(4, curW * sc));
+      rect.setAttribute("height", Math.max(2, curH * sc));
       rect.setAttribute("rx", 2);
       rect.setAttribute("fill", n.id === selected ? "#67e8f9" : "rgba(103,232,249,0.25)");
       svgEl.appendChild(rect);
@@ -1030,7 +1229,7 @@
       dragging = false;
       try {
         g.releasePointerCapture(e.pointerId);
-      } catch {}
+      } catch { }
       if (moved) e.stopPropagation();
     });
   }
@@ -1057,7 +1256,7 @@
     panning = false;
     try {
       svg.releasePointerCapture(e.pointerId);
-    } catch {}
+    } catch { }
   });
   svg.addEventListener("click", () => {
     if (selected) {
@@ -1108,10 +1307,10 @@
     if (fromButton) stats.textContent = "rescanning…";
     const r = fromButton
       ? await fetch("/api/rescan", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ maxDepth: Number(depthSelect.value) || maxDepth }),
-        }).then((x) => x.json())
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ maxDepth: Number(depthSelect.value) || maxDepth }),
+      }).then((x) => x.json())
       : await fetch("/api/graph").then((x) => x.json());
     if (r.error) {
       stats.textContent = "rescan failed: " + r.error;
@@ -1166,7 +1365,12 @@
       }
     }
     if (e.key === "r" || e.key === "R") loadGraph(true);
+    if (e.key === "h" || e.key === "H") toggleHelp();
     if (e.key === "Escape") {
+      if (!helpModal.hidden) {
+        toggleHelp();
+        return;
+      }
       closeDrawer();
       selected = null;
       render();
@@ -1188,7 +1392,7 @@
           lastGeneratedAt = m.generatedAt;
           await loadGraph(false);
         }
-      } catch {}
+      } catch { }
     }, 3200);
   }
 
@@ -1256,14 +1460,13 @@
         <span class="health-reason-icon">${icons[r.kind] || "⚠️"}</span>
         <div class="health-reason-body">
           <div class="health-reason-msg">${r.msg}</div>
-          ${
-            r.samples
-              ? `<div class="health-reason-detail">${r.samples
-                  .slice(0, 3)
-                  .map((s) => s.path || s)
-                  .join(" · ")}</div>`
-              : ""
-          }
+          ${r.samples
+          ? `<div class="health-reason-detail">${r.samples
+            .slice(0, 3)
+            .map((s) => s.path || s)
+            .join(" · ")}</div>`
+          : ""
+        }
         </div>
         <span class="health-penalty">−${r.penalty} pts</span>
       `;
@@ -1348,18 +1551,18 @@
     tableWrap.className = "table-wrap tall";
     tableWrap.innerHTML = `
       <table class="data-table">
-        <thead><tr><th>File</th><th>Depth</th><th>LOC</th><th>Risk</th></tr></thead>
+        <thead><tr><th>File</th><th title="Distance from the changed file (Steps away)">Steps Away (Depth)</th><th>LOC</th><th>Risk</th></tr></thead>
         <tbody>${data.affected
-          .map(
-            (f) => `
+        .map(
+          (f) => `
           <tr>
             <td style="color:${f.direct ? "var(--cyan)" : "var(--fg)"}">${f.path}${f.direct ? " <span style='color:var(--muted);font-size:10px'>direct</span>" : ""}</td>
             <td>${f.depth}</td>
             <td>${f.loc}</td>
             <td><span style="color:${f.risk >= 7 ? "var(--rose)" : f.risk >= 4 ? "var(--amber)" : "var(--emerald)"};font-weight:600">${f.risk}/10</span></td>
           </tr>`,
-          )
-          .join("")}
+        )
+        .join("")}
         </tbody>
       </table>
     `;

@@ -33,14 +33,70 @@
       <button type="button" id="fit" title="Fit graph (F)">fit</button>
       <button type="button" id="back" title="Back (Esc stack)">back</button>
       <button type="button" id="reload" title="Rescan project (R)">rescan</button>
+      <button type="button" id="help-btn" title="How to use (H)">help</button>
     </div>
   </header>
+
+  <!-- Help Modal -->
+  <div id="help-modal" class="modal-overlay" hidden>
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h2>RealityMap Guide</h2>
+        <button type="button" class="modal-close" id="help-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <section>
+          <h3>What am I looking at?</h3>
+          <p>Each box is a <strong>Module</strong> (a folder or a group of files). Lines show how they talk to each other (imports).</p>
+        </section>
+        <section>
+          <h3>Color Legend</h3>
+          <div class="legend-grid">
+            <div class="legend-item"><span class="dot" style="background:var(--cyan)"></span> <span>Healthy Module</span></div>
+            <div class="legend-item"><span class="dot" style="background:var(--rose)"></span> <span>Critical Issue (Cycle)</span></div>
+            <div class="legend-item"><span class="dot" style="background:var(--amber)"></span> <span>Warning / Orphan</span></div>
+          </div>
+        </section>
+        <section>
+          <h3>Common Problems</h3>
+          <ul>
+            <li><strong>🔄 Circular Dependency (Cycle):</strong> Module A needs B, and B needs A. It's like a "chicken and egg" problem that creates a tangled knot, making code fragile and hard to fix.</li>
+            <li><strong>🏝 Abandoned Island:</strong> Code that isn't connected to the rest of your app. No other folders are using it. If you don't need it anymore, it's safe to delete!</li>
+            <li><strong>📦 Giant Module:</strong> A folder with too many files or lines of code. It's harder to understand and should probably be split up.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>What is "Level" (1, 2, 3...)?</h3>
+          <p>This controls your "zoom level" in the project folders:</p>
+          <ul>
+            <li><strong>Low Level (1-2):</strong> Bird's eye view. Shows only the big main sections.</li>
+            <li><strong>High Level (5+):</strong> Microscopic view. Shows deep sub-folders and individual files.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>Pro Tips</h3>
+          <ul>
+            <li><strong>Click</strong> a module to see what's inside.</li>
+            <li><strong>Double-click</strong> to drill deeper into subfolders.</li>
+            <li><strong>Hover</strong> over the red <span style="color:var(--rose)">!</span> badge for specific diagnostic info.</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </div>
 
   <div id="view-map">
     <aside class="side glass">
       <div class="toolbar">
         <input type="search" id="module-filter" class="inp" placeholder="Filter modules… ( / )" autocomplete="off" />
         <div class="row-tools">
+          <label class="lbl">View
+            <select id="map-mode" class="sel">
+              <option value="arch">Architecture</option>
+              <option value="activity">Activity (Git)</option>
+              <option value="blast">Blast Radius</option>
+            </select>
+          </label>
           <label class="lbl">Sort
             <select id="module-sort" class="sel">
               <option value="loc">LOC</option>
@@ -49,10 +105,11 @@
               <option value="fanOut">Fan-out</option>
             </select>
           </label>
-          <label class="lbl">Depth
+          <label class="lbl">Level
             <select id="depth-select" class="sel"></select>
           </label>
         </div>
+        <div id="map-legend" class="mono dim" style="margin-top: 12px; font-size: 10px; padding: 0 8px;"></div>
       </div>
       <h3>Modules</h3>
       <div id="module-list" class="list"></div>
@@ -62,11 +119,18 @@
       <div id="cycle-list" class="list"></div>
       <h3>Top packages</h3>
       <div id="ext-list" class="list"></div>
+      <h3>Architectural Health</h3>
+      <div class="detail mono dim" style="max-height: none;">
+        <strong>Goals:</strong>
+        • Keep modules balanced (size).
+        • Avoid circular loops (red lines).
+        • Minimize cross-module coupling.
+      </div>
     </aside>
     <section class="canvas-wrap">
       <svg id="canvas"></svg>
       <div id="hud" class="hud mono"></div>
-      <div class="kbd-hint mono dim" id="kbd-hint">/ search · F fit · R rescan · wheel zoom · click module to drill in</div>
+      <div class="kbd-hint mono dim" id="kbd-hint">/ search · F fit · R rescan · H help · wheel zoom · click module to drill in</div>
       <!-- Edge tooltip -->
       <div id="edge-tooltip" class="edge-tooltip" hidden></div>
     </section>

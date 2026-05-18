@@ -16,7 +16,7 @@ const PUBLIC = path.join(__dirname, "..", "public");
 let PKG_VERSION = "0.0.0";
 try {
   PKG_VERSION = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8")).version || PKG_VERSION;
-} catch {}
+} catch { }
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
@@ -50,7 +50,7 @@ function startServer({ port, graph, root, maxDepth, watch = false }) {
       if (Number.isFinite(j.maxDepth)) {
         currentMaxDepth = Math.max(1, Math.min(5, j.maxDepth));
       }
-    } catch {}
+    } catch { }
     currentGraph = await scanProject(root, { maxDepth: currentMaxDepth });
     return currentGraph;
   }
@@ -160,8 +160,8 @@ function startServer({ port, graph, root, maxDepth, watch = false }) {
 
       if (url.pathname.startsWith("/api/module/") && req.method === "GET") {
         const parts = url.pathname.split("/");
-        if (parts.length >= 4 && parts[3] === "files") {
-          const moduleId = decodeURIComponent(parts[2]);
+        if (parts.length >= 5 && parts[4] === "files") {
+          const moduleId = decodeURIComponent(parts[3]);
           const depth = Number(url.searchParams.get("depth") || 1);
           const graph = currentGraph.graphsByDepth?.[depth] || currentGraph;
           const node = graph.nodes?.find((n) => n.id === moduleId);
@@ -170,12 +170,13 @@ function startServer({ port, graph, root, maxDepth, watch = false }) {
             res.end(JSON.stringify({ error: "module not found" }));
             return;
           }
-          const files = (node.pathsPreview || []).map((p) => {
+          const files = (node.allPaths || node.pathsPreview || []).map((p) => {
             const details = currentGraph.fileDetails || {};
             return {
               path: p,
               symbols: details.symbols?.[p] || [],
               loc: details.loc?.[p] || 0,
+              issues: node.fileIssues?.[p] || []
             };
           });
           res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
