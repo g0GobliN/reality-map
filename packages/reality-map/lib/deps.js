@@ -119,11 +119,44 @@ function parseAuditVulns(data) {
   return map;
 }
 
+// ── Recursive package.json discovery ─────────────────────────────────────
+
+const PKG_FIND_IGNORE = new Set([
+  "node_modules", ".git", ".next", ".turbo", ".cache", "dist", "build",
+  "out", "coverage", ".vercel", ".netlify", ".output", ".nuxt", ".svelte-kit",
+  "target", "vendor", ".venv", "venv", "__pycache__", ".idea", ".vscode",
+  ".pnpm-store", ".DS_Store",
+]);
+
+async function findAllPackageRoots(root) {
+  const results = [];
+  async function rec(dir, relPath) {
+    let entries;
+    try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); }
+    catch { return; }
+    for (const e of entries) {
+      if (!e.isDirectory() || e.name.startsWith(".") || PKG_FIND_IGNORE.has(e.name)) continue;
+      const absDir = path.join(dir, e.name);
+      const rel = relPath ? relPath + "/" + e.name : e.name;
+      let pkgJson = null;
+      try { pkgJson = JSON.parse(await fs.promises.readFile(path.join(absDir, "package.json"), "utf8")); }
+      catch { /* no package.json */ }
+      if (pkgJson && (pkgJson.name || pkgJson.dependencies || pkgJson.devDependencies)) {
+        results.push({ name: pkgJson.name || rel, pkgRoot: absDir, relPath: rel, pkgJson });
+      }
+      await rec(absDir, rel);
+    }
+  }
+  await rec(root, "");
+  return results;
+}
+
 // ── Import-file mapping ────────────────────────────────────────────────────
 
-function buildImportingFilesMap(fileDetails) {
+function buildImportingFilesMap(fileDetails, prefix) {
   const map = new Map(); // pkgName → Set<filePath>
   for (const [filePath, importData] of Object.entries(fileDetails?.imports || {})) {
+    if (prefix && !filePath.startsWith(prefix)) continue;
     for (const spec of (importData.specs || [])) {
       if (spec.startsWith(".") || spec.startsWith("/")) continue;
       const pkg = pkgNameFromSpec(spec);
@@ -134,6 +167,19 @@ function buildImportingFilesMap(fileDetails) {
   const result = new Map();
   for (const [pkg, files] of map) result.set(pkg, [...files].sort());
   return result;
+}
+
+function buildExternalCountsForPrefix(fileDetails, prefix) {
+  const counts = new Map();
+  for (const [filePath, importData] of Object.entries(fileDetails?.imports || {})) {
+    if (!filePath.startsWith(prefix)) continue;
+    for (const spec of (importData.specs || [])) {
+      if (spec.startsWith(".") || spec.startsWith("/")) continue;
+      const pkg = pkgNameFromSpec(spec);
+      counts.set(pkg, (counts.get(pkg) || 0) + 1);
+    }
+  }
+  return counts;
 }
 
 // ── Outdated severity ─────────────────────────────────────────────────────
@@ -182,30 +228,49 @@ function detectEcosystemDuplicates(allDeclaredNames) {
     .map(g => ({ kind: g.kind, packages: g.found, message: `${g.label} detected: ${g.found.join(", ")}` }));
 }
 
-// ── Main export ───────────────────────────────────────────────────────────
+// ── Single-package analysis helper ───────────────────────────────────────
 
-async function analyzeDeps(root, scan) {
-  const pkgJson = readPackageJson(root);
-  if (!pkgJson) return { available: false, error: "No package.json found at project root." };
+function buildSummary(packages) {
+  let critical = 0, high = 0, moderate = 0, low = 0;
+  for (const pkg of packages) {
+    for (const v of pkg.vulnerabilities) {
+      if (v.severity === "critical") critical++;
+      else if (v.severity === "high") high++;
+      else if (v.severity === "moderate" || v.severity === "medium") moderate++;
+      else if (v.severity === "low") low++;
+    }
+  }
+  return {
+    total:      packages.length,
+    safe:       packages.filter(p => p.riskScore < 3 && !p.isUnused && !p.isDeprecated).length,
+    mediumRisk: packages.filter(p => p.riskScore >= 3 && p.riskScore < 6).length,
+    highRisk:   packages.filter(p => p.riskScore >= 6).length,
+    critical, high, moderate, low,
+    unused:     packages.filter(p => p.isUnused).length,
+    deprecated: packages.filter(p => p.isDeprecated).length,
+    outdated:   packages.filter(p => p.outdatedInfo && p.outdatedInfo.current !== p.outdatedInfo.latest).length,
+  };
+}
 
+async function analyzeOnePackage({ pkgJson, pkgRoot, rootFallback, importingFilesMap, externalCounts, timeoutMs = 30000 }) {
   const deps    = pkgJson.dependencies    || {};
   const devDeps = pkgJson.devDependencies || {};
   const allDeclared = { ...deps, ...devDeps };
 
-  const importingFilesMap  = buildImportingFilesMap(scan.fileDetails);
-  const externalPkgCounts  = new Map((scan.insights?.externalPackages || []).map(p => [p.name, p.count]));
-
   const [auditResult, outdatedResult] = await Promise.all([
-    spawnJsonAsync("npm", ["audit", "--json"], root),
-    spawnJsonAsync("npm", ["outdated", "--json"], root),
+    spawnJsonAsync("npm", ["audit", "--json"], pkgRoot, timeoutMs),
+    spawnJsonAsync("npm", ["outdated", "--json"], pkgRoot, timeoutMs),
   ]);
-  const vulnsByPkg    = parseAuditVulns(auditResult.ok ? auditResult.data : null);
-  const outdatedData   = (outdatedResult.ok && outdatedResult.data && typeof outdatedResult.data === "object") ? outdatedResult.data : {};
+  const vulnsByPkg  = parseAuditVulns(auditResult.ok ? auditResult.data : null);
+  const outdatedData = (outdatedResult.ok && outdatedResult.data && typeof outdatedResult.data === "object") ? outdatedResult.data : {};
 
   const packages = [];
   for (const [name, declaredRange] of Object.entries(allDeclared)) {
-    const installed      = readInstalledMeta(root, name);
-    const importCount    = externalPkgCounts.get(name) || 0;
+    let installed = readInstalledMeta(pkgRoot, name);
+    if (!installed.version && rootFallback && rootFallback !== pkgRoot) {
+      installed = readInstalledMeta(rootFallback, name);
+    }
+    const importCount    = externalCounts.get(name) || 0;
     const importingFiles = (importingFilesMap.get(name) || []).slice(0, 60);
     const isConfigOnly   = checkIsConfigOnly(importingFiles);
     const isUnused       = importCount === 0 && !isConfigOnly && !SAFE_DEV.has(name) && !name.startsWith("@types/");
@@ -235,43 +300,64 @@ async function analyzeDeps(root, scan) {
 
   packages.sort((a, b) => b.riskScore - a.riskScore || a.name.localeCompare(b.name));
 
-  let criticalCount = 0, highCount = 0, moderateCount = 0, lowCount = 0;
-  for (const pkg of packages) {
-    for (const v of pkg.vulnerabilities) {
-      if (v.severity === "critical")                             criticalCount++;
-      else if (v.severity === "high")                           highCount++;
-      else if (v.severity === "moderate" || v.severity === "medium") moderateCount++;
-      else if (v.severity === "low")                            lowCount++;
-    }
-  }
+  return {
+    packages,
+    summary:           buildSummary(packages),
+    ecosystemWarnings: detectEcosystemDuplicates(Object.keys(allDeclared)),
+    auditAvailable:    auditResult.ok,
+    auditError:        auditResult.ok ? null : (auditResult.error || "npm audit failed"),
+    outdatedAvailable: outdatedResult.ok,
+  };
+}
 
-  const unusedCount    = packages.filter(p => p.isUnused).length;
-  const deprecatedCount = packages.filter(p => p.isDeprecated).length;
-  const outdatedCount  = packages.filter(p => p.outdatedInfo && p.outdatedInfo.current !== p.outdatedInfo.latest).length;
-  const highRiskCount  = packages.filter(p => p.riskScore >= 6).length;
-  const medRiskCount   = packages.filter(p => p.riskScore >= 3 && p.riskScore < 6).length;
-  const safeCount      = packages.filter(p => p.riskScore < 3 && !p.isUnused && !p.isDeprecated).length;
+// ── Main export ───────────────────────────────────────────────────────────
+
+async function analyzeDeps(root, scan) {
+  const pkgJson = readPackageJson(root);
+  if (!pkgJson) return { available: false, error: "No package.json found at project root." };
+
+  const rootImportingFilesMap = buildImportingFilesMap(scan.fileDetails);
+  const rootExternalCounts    = new Map((scan.insights?.externalPackages || []).map(p => [p.name, p.count]));
+
+  // Analyze root and find subpackages in parallel
+  const [rootResult, subPackageDirs] = await Promise.all([
+    analyzeOnePackage({
+      pkgJson,
+      pkgRoot:          root,
+      rootFallback:     null,
+      importingFilesMap: rootImportingFilesMap,
+      externalCounts:   rootExternalCounts,
+    }),
+    findAllPackageRoots(root),
+  ]);
+
+  // Analyze each subpackage in parallel (15s timeout each to avoid slow monorepos)
+  const subPackages = await Promise.all(
+    subPackageDirs.map(async ({ name, pkgRoot, relPath, pkgJson: subPkg }) => {
+      const prefix          = relPath + "/";
+      const importingMap    = buildImportingFilesMap(scan.fileDetails, prefix);
+      const externalCounts  = buildExternalCountsForPrefix(scan.fileDetails, prefix);
+      const result = await analyzeOnePackage({
+        pkgJson:          subPkg,
+        pkgRoot,
+        rootFallback:     root,
+        importingFilesMap: importingMap,
+        externalCounts,
+        timeoutMs:        15000,
+      });
+      return { name, relPath, ...result };
+    })
+  );
 
   return {
-    available: true,
-    packages,
-    summary: {
-      total:      packages.length,
-      safe:       safeCount,
-      mediumRisk: medRiskCount,
-      highRisk:   highRiskCount,
-      critical:   criticalCount,
-      high:       highCount,
-      moderate:   moderateCount,
-      low:        lowCount,
-      unused:     unusedCount,
-      deprecated: deprecatedCount,
-      outdated:   outdatedCount,
-    },
-    ecosystemWarnings:  detectEcosystemDuplicates(Object.keys(allDeclared)),
-    auditAvailable:     auditResult.ok,
-    auditError:         auditResult.ok ? null : (auditResult.error || "npm audit failed"),
-    outdatedAvailable:  outdatedResult.ok,
+    available:         true,
+    packages:          rootResult.packages,
+    subPackages,
+    summary:           rootResult.summary,
+    ecosystemWarnings: rootResult.ecosystemWarnings,
+    auditAvailable:    rootResult.auditAvailable,
+    auditError:        rootResult.auditError,
+    outdatedAvailable: rootResult.outdatedAvailable,
   };
 }
 

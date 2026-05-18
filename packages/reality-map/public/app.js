@@ -1842,6 +1842,75 @@
       if (rF) { rF.addEventListener("change", applyFilters); }
       if (tF) { tF.addEventListener("change", applyFilters); }
     }
+
+    // ── Subpackage breakdown ─────────────────────────────────────
+    const subContainer = document.getElementById("deps-subpackages");
+    if (!subContainer) return;
+
+    const subPackages = data.subPackages || [];
+    if (!subPackages.length) { subContainer.innerHTML = ""; return; }
+
+    function renderSubPkgTable(pkgs, containerId) {
+      const rows = pkgs.map(pkg => {
+        const versionColor = pkg.outdatedSeverity === "major" ? "var(--amber)" : pkg.outdatedSeverity ? "var(--muted)" : null;
+        const versionStr = versionColor
+          ? `<span style="color:${versionColor}">${pkg.installedVersion || pkg.declaredRange}</span>`
+          : `<span>${pkg.installedVersion || pkg.declaredRange || "—"}</span>`;
+        return `<tr style="cursor:pointer" data-pkg-idx="${pkgs.indexOf(pkg)}" data-container="${containerId}">
+          <td style="font-weight:500">${pkg.name}</td>
+          <td style="color:var(--muted);font-size:11px">${pkg.type === "devDep" ? "dev" : "dep"}</td>
+          <td class="mono">${versionStr}</td>
+          <td>${pkg.importCount > 0 ? `<span style="color:var(--cyan)">${pkg.importCount}</span>` : `<span style="color:var(--muted)">0</span>`}</td>
+          <td><span style="color:${depsRiskColor(pkg.riskScore)};font-weight:700;font-size:12px">${pkg.riskScore > 0 ? pkg.riskScore : "—"}</span></td>
+          <td style="white-space:nowrap">${depsStatusBadges(pkg) || '<span style="color:var(--muted);font-size:10px">safe</span>'}</td>
+        </tr>`;
+      }).join("");
+      return `<div class="table-wrap" style="max-height:300px">
+        <table class="data-table" id="${containerId}">
+          <thead><tr><th>Package</th><th>Type</th><th>Version</th><th>Imports</th><th>Risk</th><th>Status</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    }
+
+    subContainer.innerHTML = `
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:14px">Subpackages (${subPackages.length})</div>
+      ${subPackages.map((sp, i) => {
+        const s = sp.summary || {};
+        const chips = [
+          `<span style="font-size:10px;color:var(--muted)">${s.total || 0} pkgs</span>`,
+          s.unused     ? `<span style="font-size:10px;color:var(--muted)">${s.unused} unused</span>` : "",
+          s.outdated   ? `<span style="font-size:10px;color:var(--amber)">${s.outdated} outdated</span>` : "",
+          s.highRisk   ? `<span style="font-size:10px;color:var(--rose)">${s.highRisk} high risk</span>` : "",
+          s.critical   ? `<span style="font-size:10px;color:var(--rose)">${s.critical} critical</span>` : "",
+        ].filter(Boolean).join(" · ");
+
+        const tableId = `sub-tbl-${i}`;
+        return `<details style="margin-bottom:10px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <summary style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;list-style:none;background:var(--surface)">
+            <span style="font-weight:600;font-size:13px">${sp.name}</span>
+            <span style="color:var(--muted);font-size:11px">${sp.relPath}</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--muted)">${chips}</span>
+          </summary>
+          <div style="padding:0 0 8px">
+            ${sp.packages && sp.packages.length
+              ? renderSubPkgTable(sp.packages, tableId)
+              : `<div style="padding:16px;color:var(--muted);font-size:12px">No dependencies declared.</div>`}
+          </div>
+        </details>`;
+      }).join("")}
+    `;
+
+    // Wire click handlers for subpackage rows
+    subContainer.querySelectorAll("tr[data-pkg-idx]").forEach(tr => {
+      tr.addEventListener("click", () => {
+        const spIdx = [...subContainer.querySelectorAll("details")].indexOf(tr.closest("details"));
+        const pkgIdx = Number(tr.dataset.pkgIdx);
+        if (spIdx >= 0 && subPackages[spIdx]) {
+          openPkgDrawer(subPackages[spIdx].packages[pkgIdx]);
+        }
+      });
+    });
   }
 
   render();
