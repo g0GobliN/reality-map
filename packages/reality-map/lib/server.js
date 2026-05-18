@@ -5,6 +5,10 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { scanProject } = require("./scan.js");
+const { computeHealth } = require("./health.js");
+const { buildOrphanReport } = require("./orphans.js");
+const { renderHtml } = require("./html-export.js");
+const { loadRules, checkRules } = require("./rules.js");
 
 const PUBLIC = path.join(__dirname, "..", "public");
 let PKG_VERSION = "0.0.0";
@@ -81,6 +85,38 @@ function startServer({ port, graph, root, maxDepth, watch = false }) {
           maxDepth: currentMaxDepth,
           generatedAt: currentGraph.generatedAt || null,
         }));
+        return;
+      }
+
+      if (url.pathname === "/api/health" && req.method === "GET") {
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify(computeHealth(currentGraph)));
+        return;
+      }
+
+      if (url.pathname === "/api/orphans" && req.method === "GET") {
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify(buildOrphanReport(currentGraph)));
+        return;
+      }
+
+      if (url.pathname === "/api/snapshot.html" && req.method === "GET") {
+        const html = renderHtml(currentGraph, computeHealth(currentGraph));
+        res.writeHead(200, {
+          "content-type": "text/html; charset=utf-8",
+          "content-disposition": 'attachment; filename="reality-map-snapshot.html"',
+        });
+        res.end(html);
+        return;
+      }
+
+      if (url.pathname === "/api/search" && req.method === "GET") {
+        const q = (url.searchParams.get("q") || "").toLowerCase().trim();
+        const limit = Math.max(1, Math.min(200, Number(url.searchParams.get("limit") || 50)));
+        const idx = currentGraph.insights?.filesIndex || [];
+        const out = !q ? [] : idx.filter((f) => f.path.toLowerCase().includes(q)).slice(0, limit);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ q, results: out }));
         return;
       }
 
