@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>RealityMap — local dashboard</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo-dot"></span>
+      <strong>RealityMap</strong>
+      <span class="dim mono" id="meta-root">…</span>
+    </div>
+    <div class="stats mono" id="stats">scanning…</div>
+    <div class="actions">
+      <button id="fit">fit</button>
+      <button id="reload">rescan</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="side glass">
+      <h3>Modules</h3>
+      <div id="module-list" class="list"></div>
+      <h3>Cycles</h3>
+      <div id="cycle-list" class="list"></div>
+      <h3>Top dependencies</h3>
+      <div id="ext-list" class="list"></div>
+    </aside>
+    <section class="canvas-wrap">
+      <svg id="canvas"></svg>
+      <div id="hud" class="hud mono"></div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
