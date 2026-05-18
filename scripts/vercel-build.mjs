@@ -20,10 +20,7 @@ writeFileSync(
   `${OUT}/config.json`,
   JSON.stringify({
     version: 3,
-    routes: [
-      { handle: "filesystem" },
-      { src: "/(.*)", dest: "/index" },
-    ],
+    routes: [{ handle: "filesystem" }, { src: "/(.*)", dest: "/index" }],
   }),
 );
 
