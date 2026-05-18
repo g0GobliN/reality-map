@@ -480,10 +480,27 @@ function buildDependencyTree(scan, modId, maxDepth) {
 (async () => {
   const args = parseArgs(process.argv.slice(2));
   validateArgCombo(args);
-  const cyan = (s) => `\x1b[36m${s}\x1b[0m`;
-  const dim = (s) => `\x1b[2m${s}\x1b[0m`;
-  const bold = (s) => `\x1b[1m${s}\x1b[0m`;
-  const green = (s) => `\x1b[32m${s}\x1b[0m`;
+  const useColor = !args.noColor && !process.env.NO_COLOR;
+  const wrap = (code) => (s) => useColor ? `\x1b[${code}m${s}\x1b[0m` : String(s);
+  const cyan = wrap(36);
+  const dim = wrap(2);
+  const bold = wrap(1);
+  const green = wrap(32);
+  const yellow = wrap(33);
+  const red = wrap(31);
+
+  // ---- --init-rules runs before scanning ----------------------------------
+  if (args.initRules) {
+    const abs = path.resolve(process.cwd(), args.initRules);
+    if (fs.existsSync(abs)) {
+      console.error(`reality-map: refusing to overwrite ${abs}`);
+      process.exit(1);
+    }
+    fs.writeFileSync(abs, JSON.stringify(RULES_TEMPLATE, null, 2) + "\n", "utf8");
+    console.log(`reality-map: wrote starter rules → ${abs}`);
+    console.log(`  edit it, then run:  npx reality-map --rules ${path.basename(abs)} --fail-on-rules .`);
+    process.exit(0);
+  }
 
   const log = (...x) => {
     if (!args.quiet && !args.jsonOut && !args.summaryJson && !args.listFiles) console.log(...x);
