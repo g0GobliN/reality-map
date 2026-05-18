@@ -534,6 +534,7 @@ async function scanProject(root, opts = {}) {
         sub: `${filesInMod} files · ${loc} loc`,
         tone: inCycle.has(m) ? "rose" : toneFor(m),
         warn: inCycle.has(m),
+        warnMsg: inCycle.has(m) ? "Circular dependency detected" : null,
         x: 60 + col * colW,
         y: 60 + row * rowH,
         files: filesInMod,

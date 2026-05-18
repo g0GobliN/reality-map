@@ -35,6 +35,7 @@
   const drawerSymbols = document.getElementById("drawer-symbols");
   const drawerImports = document.getElementById("drawer-imports");
   const symbolSearch = document.getElementById("symbol-search");
+  const drawerWarn = document.getElementById("drawer-warn");
   const edgeTooltip = document.getElementById("edge-tooltip");
   const layout = document.getElementById("view-map");
 
@@ -212,6 +213,13 @@
     symbolSearch.value = "";
     renderDrawerBreadcrumb();
 
+    if (node.warn) {
+      drawerWarn.innerHTML = `<h4>Warning</h4><p>${node.warnMsg || "Circular dependency detected"}</p>`;
+      drawerWarn.hidden = false;
+    } else {
+      drawerWarn.hidden = true;
+    }
+
     // Fetch file list for this module
     let filesData = { files: [] };
     try {
@@ -262,6 +270,7 @@
     drawerTitle.textContent = filePath;
     drawerMeta.textContent = `${data.loc} lines · ${data.symbols.length} symbols · ${data.imports.specs.length} imports`;
     drawerFiles.innerHTML = "";
+    drawerWarn.hidden = true;
     symbolSearch.value = "";
     allSymbols = data.symbols || [];
     renderDrawerBreadcrumb();
@@ -517,8 +526,10 @@
     graph.cycles.slice(0, 8).forEach((cy) => {
       const item = document.createElement("div");
       item.className = "row warn";
+      item.title = "Circular dependency cycle detected";
       item.innerHTML = `<span class="dot" style="background:${TONE.rose}"></span>
         <span class="name mono" style="font-size:11px">${cy.join(" → ")}</span>`;
+      item.onclick = () => onModuleClick(cy[0]);
       cycleList.appendChild(item);
     });
 
@@ -804,7 +815,7 @@
       );
 
       if (n.warn) {
-        const badge = el("g", { transform: `translate(${NW - 28} 12)` });
+        const badge = el("g", { transform: `translate(${NW - 28} 12)`, style: "cursor:help" });
         badge.appendChild(
           el("circle", {
             r: 9,
@@ -826,6 +837,17 @@
         });
         t.textContent = "!";
         badge.appendChild(t);
+
+        badge.addEventListener("mouseenter", (ev) => {
+          edgeTooltip.innerHTML = `<div class="et-title">Warning</div><div class="et-line">${n.warnMsg || "Circular dependency detected"}</div>`;
+          edgeTooltip.hidden = false;
+          positionEdgeTooltip(ev);
+        });
+        badge.addEventListener("mousemove", (ev) => positionEdgeTooltip(ev));
+        badge.addEventListener("mouseleave", () => {
+          edgeTooltip.hidden = true;
+        });
+
         g.appendChild(badge);
       }
 
