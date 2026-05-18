@@ -242,9 +242,9 @@ or anything under it; \`*\` and \`?\` match within a single path segment.
     args.noServe = true;
     args.open = false;
   }
-  if (args.exportHtml || args.orphansOut || args.baseline || args.rulesFile || args.health || args.showTree) {
+  if (args.exportHtml || args.orphansOut || args.diffOut || args.showTree) {
     args.open = false;
-    if (!args.jsonOut && !args.exportPath) args.noServe = true;
+    args.noServe = true;
   }
   return args;
 }
