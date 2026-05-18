@@ -13,7 +13,7 @@ const IGNORE_DIRS = new Set([
 
 const CODE_EXT = new Set([
   ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts",
-  ".vue", ".svelte", ".astro",
+  ".vue", ".svelte", ".astro", ".py", ".go", ".rs",
 ]);
 
 const FILES_INDEX_CAP = 6000;
@@ -140,7 +140,7 @@ async function walk(root, opts = {}) {
   return out;
 }
 
-const IMPORT_RE = /(?:import|export)\s+(?:[^'"`;]*?\sfrom\s+)?["']([^"']+)["']|require\(\s*["']([^"']+)["']\s*\)|import\(\s*["']([^"']+)["']\s*\)/g;
+const IMPORT_RE = /(?:import|export)\s+(?:[^'"`;]*?\sfrom\s+)?["']([^"']+)["']|require\(\s*["']([^"']+)["']\s*\)|import\(\s*["']([^"']+)["']\s*\)|from\s+([^"'\s]+)\s+import\s+[^;]+|import\s+([^"'\s]+)|use\s+([^;]+);|import\s*\(\s*[^)]*\)/g;
 
 function extractImports(src) {
   const found = new Set();
@@ -148,10 +148,24 @@ function extractImports(src) {
   let m;
   IMPORT_RE.lastIndex = 0;
   while ((m = IMPORT_RE.exec(src))) {
-    const spec = m[1] || m[2] || m[3];
-    found.add(spec);
-    const lineNum = src.substring(0, m.index).split('\n').length;
-    details.push({ spec, line: lineNum, statement: m[0] });
+    let spec = m[1] || m[2] || m[3] || m[4] || m[5] || m[6];
+    if (m[7]) {
+      // Go import block: extract individual imports
+      const block = m[7];
+      const goImportRe = /"([^"]+)"/g;
+      let subM;
+      while ((subM = goImportRe.exec(block))) {
+        found.add(subM[1]);
+        const lineNum = src.substring(0, m.index).split('\n').length;
+        details.push({ spec: subM[1], line: lineNum, statement: m[0] });
+      }
+      continue;
+    }
+    if (spec) {
+      found.add(spec);
+      const lineNum = src.substring(0, m.index).split('\n').length;
+      details.push({ spec, line: lineNum, statement: m[0] });
+    }
   }
   return { specs: Array.from(found), details };
 }
@@ -195,6 +209,57 @@ function extractFunctionsAndClasses(src, filePath) {
     while ((m = typeRe.exec(src))) {
       const line = src.substring(0, m.index).split('\n').length;
       items.push({ type: 'type', name: m[1], line });
+    }
+  }
+  
+  // Python functions and classes
+  if (ext === '.py') {
+    const pyFuncRe = /def\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
+    while ((m = pyFuncRe.exec(src))) {
+      const line = src.substring(0, m.index).split('\n').length;
+      items.push({ type: 'function', name: m[1], line });
+    }
+    
+    const pyClassRe = /class\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
+    while ((m = pyClassRe.exec(src))) {
+      const line = src.substring(0, m.index).split('\n').length;
+      items.push({ type: 'class', name: m[1], line });
+    }
+  }
+  
+  // Go functions and types
+  if (ext === '.go') {
+    const goFuncRe = /func\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
+    while ((m = goFuncRe.exec(src))) {
+      const line = src.substring(0, m.index).split('\n').length;
+      items.push({ type: 'function', name: m[1], line });
+    }
+    
+    const goTypeRe = /type\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
+    while ((m = goTypeRe.exec(src))) {
+      const line = src.substring(0, m.index).split('\n').length;
+      items.push({ type: 'type', name: m[1], line });
+    }
+  }
+  
+  // Rust functions, structs, enums
+  if (ext === '.rs') {
+    const rsFuncRe = /fn\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
+    while ((m = rsFuncRe.exec(src))) {
+      const line = src.substring(0, m.index).split('\n').length;
+      items.push({ type: 'function', name: m[1], line });
+    }
+    
+    const rsStructRe = /struct\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
+    while ((m = rsStructRe.exec(src))) {
+      const line = src.substring(0, m.index).split('\n').length;
+      items.push({ type: 'struct', name: m[1], line });
+    }
+    
+    const rsEnumRe = /enum\s+([a-zA-Z_][a-zA-Z0-9_]*)/g;
+    while ((m = rsEnumRe.exec(src))) {
+      const line = src.substring(0, m.index).split('\n').length;
+      items.push({ type: 'enum', name: m[1], line });
     }
   }
   

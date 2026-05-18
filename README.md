@@ -1,3 +1,14 @@
+```
+██████╗ ███████╗ █████╗ ██╗     ██╗████████╗██╗   ██╗    ███╗   ███╗ █████╗ ██████╗ 
+██╔══██╗██╔════╝██╔══██╗██║     ██║╚══██╔══╝╚██╗ ██╔╝    ████╗ ████║██╔══██╗██╔══██╗
+██████╔╝█████╗  ███████║██║     ██║   ██║    ╚████╔╝     ██╔████╔██║███████║██████╔╝
+██╔══██╗██╔══╝  ██╔══██║██║     ██║   ██║     ╚██╔╝      ██║╚██╔╝██║██╔══██║██╔═══╝ 
+██║  ██║███████╗██║  ██║███████╗██║   ██║      ██║       ██║ ╚═╝ ██║██║  ██║██║     
+╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝   ╚═╝      ╚═╝       ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝     
+
+Visual Architecture Explorer for Codebases
+```
+
 # reality-map
 
 **Visual architecture explorer for any JavaScript/TypeScript codebase. Zero config, zero upload, runs entirely local.**
@@ -10,13 +21,13 @@ npx reality-map
 
 Opens an interactive dependency map in your browser in seconds.
 
+![reality-map screenshot](https://raw.githubusercontent.com/g0GobliN/reality-map/main/public/screenshot.png)
+
 ---
 
 ## What it does
 
 Most codebases grow faster than anyone can understand them. `reality-map` gives you an instant visual overview — modules, dependencies, cycles, coupling hubs — and lets you drill all the way down to individual files and functions.
-
-![reality-map screenshot](https://raw.githubusercontent.com/g0GobliN/reality-map/main/public/screenshot.png)
 
 ---
 
@@ -52,7 +63,7 @@ A single 0–100 score with letter grade (A–F) based on:
 
 Includes a **copy-ready README badge**:
 ```
-![Health 87/100](https://img.shields.io/badge/health-87%2F100-brightgreen)
+![Health 87/100](https://img.shields.io/static/v1?label=health&message=87/100&color=brightgreen)
 ```
 
 ### 🧹 Dead Code Detector *(new)*
@@ -110,6 +121,9 @@ npx reality-map --export snapshot.html
 | Vue | `.vue` |
 | Svelte | `.svelte` |
 | Astro | `.astro` |
+| Python | `.py` |
+| Go | `.go` |
+| Rust | `.rs` |
 
 ---
 
