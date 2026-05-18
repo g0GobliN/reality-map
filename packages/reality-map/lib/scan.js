@@ -286,6 +286,9 @@ function buildInsights(root, files, fileEdges, fileLoc, externalCounts) {
     filesIndex,
     filesIndexCap: FILES_INDEX_CAP,
     filesIndexTruncated: files.length > FILES_INDEX_CAP,
+    externalPackages: [...externalCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count })),
   };
 }
 

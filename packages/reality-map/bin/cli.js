@@ -14,6 +14,7 @@ const { loadBaseline, diffScans } = require("../lib/diff.js");
 const { loadRules, checkRules } = require("../lib/rules.js");
 const { buildOrphanReport } = require("../lib/orphans.js");
 const { renderHtml } = require("../lib/html-export.js");
+const { extStats, unusedDeps, shortestPath, inspectModule, filesCsv, RULES_TEMPLATE } = require("../lib/extras.js");
 
 function printMachineError(code, message, extra) {
   const payload = { type: "reality-map-error", code, message, ...extra };
@@ -51,6 +52,15 @@ function parseArgs(argv) {
     exportHtml: null,
     showTree: null,
     treeDepth: 3,
+    insights: false,
+    extStats: false,
+    unusedDeps: false,
+    failOnUnused: false,
+    why: null, // {from,to}
+    inspect: null,
+    exportCsv: null,
+    initRules: null,
+    noColor: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -166,6 +176,35 @@ function parseArgs(argv) {
       const n = Number(argv[++i]);
       if (!Number.isFinite(n) || n < 1) { printMachineError("EARG", "--tree-depth requires a positive number"); process.exit(1); }
       args.treeDepth = Math.min(8, n);
+    } else if (a === "--insights" || a === "--top") {
+      args.insights = true;
+    } else if (a === "--ext-stats") {
+      args.extStats = true;
+    } else if (a === "--unused-deps") {
+      args.unusedDeps = true;
+    } else if (a === "--fail-on-unused-deps") {
+      args.unusedDeps = true;
+      args.failOnUnused = true;
+    } else if (a === "--why" || a === "--path") {
+      const from = argv[++i], to = argv[++i];
+      if (!from || !to || from.startsWith("-") || to.startsWith("-")) {
+        printMachineError("EARG", "--why requires <from> <to> module ids");
+        process.exit(1);
+      }
+      args.why = { from, to };
+    } else if (a === "--inspect" || a === "--module") {
+      const v = argv[++i];
+      if (!v || v.startsWith("-")) { printMachineError("EARG", "--inspect requires a module id"); process.exit(1); }
+      args.inspect = v;
+    } else if (a === "--export-csv") {
+      const p = argv[++i];
+      if (!p || p.startsWith("-")) { printMachineError("EARG", "--export-csv requires a file path"); process.exit(1); }
+      args.exportCsv = p;
+    } else if (a === "--init-rules") {
+      const p = argv[++i] || "reality-map.rules.json";
+      args.initRules = p;
+    } else if (a === "--no-color") {
+      args.noColor = true;
     } else if (a === "--help" || a === "-h") {
       console.log(`reality-map — visual architecture explorer (v${PKG_VERSION})
 
@@ -214,6 +253,19 @@ Options:
                      Write a self-contained HTML snapshot (graph + health + tables)
       --tree <module> Print a dependency tree for a module id (depth 1)
       --tree-depth <n> Limit --tree depth (default 3, max 8)
+      --insights, --top
+                     Print top files / hubs / packages tables to terminal
+      --ext-stats    Print file extension breakdown (files, LOC)
+      --unused-deps  List package.json deps never imported in source
+      --fail-on-unused-deps
+                     Exit 1 if any unused deps detected (implies --unused-deps)
+      --why <a> <b>  Print shortest module dependency path from <a> to <b>
+      --inspect <id> Show importers / importees for a module id (depth 1)
+      --export-csv <file>
+                     Write a CSV of all scanned files (path, ext, loc, in/out)
+      --init-rules [file]
+                     Scaffold a starter layer-rules JSON (default reality-map.rules.json)
+      --no-color     Disable ANSI colors in terminal output
   -h, --help         Show help
   -V, --version      Print version
 
@@ -245,6 +297,10 @@ or anything under it; \`*\` and \`?\` match within a single path segment.
   if (args.exportHtml || args.orphansOut || args.diffOut || args.showTree) {
     args.open = false;
     args.noServe = true;
+  }
+  if (args.exportCsv || args.why || args.inspect || args.insights || args.extStats || args.unusedDeps || args.initRules) {
+    args.noServe = true;
+    args.open = false;
   }
   return args;
 }
@@ -424,10 +480,27 @@ function buildDependencyTree(scan, modId, maxDepth) {
 (async () => {
   const args = parseArgs(process.argv.slice(2));
   validateArgCombo(args);
-  const cyan = (s) => `\x1b[36m${s}\x1b[0m`;
-  const dim = (s) => `\x1b[2m${s}\x1b[0m`;
-  const bold = (s) => `\x1b[1m${s}\x1b[0m`;
-  const green = (s) => `\x1b[32m${s}\x1b[0m`;
+  const useColor = !args.noColor && !process.env.NO_COLOR;
+  const wrap = (code) => (s) => useColor ? `\x1b[${code}m${s}\x1b[0m` : String(s);
+  const cyan = wrap(36);
+  const dim = wrap(2);
+  const bold = wrap(1);
+  const green = wrap(32);
+  const yellow = wrap(33);
+  const red = wrap(31);
+
+  // ---- --init-rules runs before scanning ----------------------------------
+  if (args.initRules) {
+    const abs = path.resolve(process.cwd(), args.initRules);
+    if (fs.existsSync(abs)) {
+      console.error(`reality-map: refusing to overwrite ${abs}`);
+      process.exit(1);
+    }
+    fs.writeFileSync(abs, JSON.stringify(RULES_TEMPLATE, null, 2) + "\n", "utf8");
+    console.log(`reality-map: wrote starter rules → ${abs}`);
+    console.log(`  edit it, then run:  npx reality-map --rules ${path.basename(abs)} --fail-on-rules .`);
+    process.exit(0);
+  }
 
   const log = (...x) => {
     if (!args.quiet && !args.jsonOut && !args.summaryJson && !args.listFiles) console.log(...x);
@@ -606,6 +679,99 @@ function buildDependencyTree(scan, modId, maxDepth) {
     const mm = moduleGraphToMermaid(graphForExport);
     const abs = await writeTextFile(args.exportMermaid, mm);
     if (!args.quiet) log(`  ${dim("export-mermaid")}  wrote ${cyan(abs)} (depth ${graphDepth})`);
+  }
+
+  // ---- Insights / Top -----------------------------------------------------
+  if (args.insights) {
+    const ins = scan.insights || {};
+    const fmtRow = (a, b) => `    ${dim("·")} ${a.padEnd(60)} ${dim(String(b))}`;
+    log("");
+    log(`  ${bold("largest files")}`);
+    for (const f of (ins.topFilesByLoc || []).slice(0, 10)) log(fmtRow(f.path, f.loc + " loc"));
+    log("");
+    log(`  ${bold("most-imported (internal)")}`);
+    for (const f of (ins.topImported || []).slice(0, 10)) log(fmtRow(f.path, "× " + f.count));
+    log("");
+    log(`  ${bold("coupling hubs")}`);
+    for (const h of (ins.hubs || []).slice(0, 10)) log(fmtRow(h.path, `in ${h.in} / out ${h.out}`));
+    log("");
+    log(`  ${bold("top external packages")}`);
+    for (const p of (ins.externalPackages || []).slice(0, 12)) log(fmtRow(p.name, "× " + p.count));
+    log("");
+  }
+
+  // ---- Extension breakdown ------------------------------------------------
+  if (args.extStats) {
+    log("");
+    log(`  ${bold("extension breakdown")}`);
+    const rows = extStats(scan);
+    const total = rows.reduce((a, r) => a + r.loc, 0) || 1;
+    for (const r of rows) {
+      const pct = ((r.loc / total) * 100).toFixed(1);
+      log(`    ${dim("·")} ${r.ext.padEnd(8)} ${String(r.files).padStart(5)} files   ${String(r.loc).padStart(7)} loc   ${dim(pct + "%")}`);
+    }
+    log("");
+  }
+
+  // ---- Unused declared deps ----------------------------------------------
+  if (args.unusedDeps) {
+    const u = unusedDeps(scan, args.root);
+    if (!u) {
+      log(`  ${dim("unused-deps")} no package.json at project root`);
+    } else {
+      log("");
+      log(`  ${bold("unused dependencies")} ${dim(`(${u.unused.length} of ${u.declared} declared, ${u.used} imported)`)}`);
+      if (!u.unused.length) log(`    ${green("✓")} ${dim("all declared deps appear in source")}`);
+      else for (const n of u.unused) log(`    ${dim("·")} ${yellow(n)}`);
+      log("");
+      if (args.failOnUnused && u.unused.length) {
+        printMachineError("EUNUSED", `${u.unused.length} unused dependency(s) declared in package.json`, { unused: u.unused });
+        process.exit(1);
+      }
+    }
+  }
+
+  // ---- Why / shortest path ------------------------------------------------
+  if (args.why) {
+    const r = shortestPath(scan, args.why.from, args.why.to);
+    log("");
+    log(`  ${bold("path")}  ${args.why.from} ${dim("→")} ${args.why.to}`);
+    if (!r || r.error) {
+      log(`    ${red("✗")} ${(r && r.error) || "no graph"}`);
+    } else if (!r.path) {
+      log(`    ${dim("no path found")}`);
+    } else {
+      log("    " + r.path.join(`  ${dim("→")}  `));
+    }
+    log("");
+  }
+
+  // ---- Inspect module -----------------------------------------------------
+  if (args.inspect) {
+    const r = inspectModule(scan, args.inspect);
+    log("");
+    if (!r || r.error) {
+      log(`  ${red("✗")} ${(r && r.error) || "no graph"}`);
+    } else {
+      log(`  ${bold("module")}  ${cyan(r.node.id)}`);
+      log(`    ${dim("files")}     ${r.node.files} · ${r.node.loc} loc · fan-in ${r.node.fanIn} · fan-out ${r.node.fanOut}`);
+      log(`    ${dim("importers")}`);
+      if (!r.importers.length) log(`      ${dim("(none)")}`);
+      for (const im of r.importers.slice(0, 20)) log(`      ${dim("←")} ${im.from} ${dim(`(w=${im.weight})`)}`);
+      log(`    ${dim("importees")}`);
+      if (!r.importees.length) log(`      ${dim("(none)")}`);
+      for (const im of r.importees.slice(0, 20)) log(`      ${dim("→")} ${im.to} ${dim(`(w=${im.weight})`)}`);
+      log(`    ${dim("sample paths")}`);
+      for (const p of (r.node.pathsPreview || []).slice(0, 8)) log(`      ${dim("·")} ${p}`);
+    }
+    log("");
+  }
+
+  // ---- Files CSV ----------------------------------------------------------
+  if (args.exportCsv) {
+    const csv = filesCsv(scan);
+    const abs = await writeTextFile(args.exportCsv, csv);
+    if (!args.quiet) log(`  ${dim("export-csv")} wrote ${cyan(abs)} (${(scan.insights?.filesIndex || []).length} rows)`);
   }
 
   if (args.noServe) {
