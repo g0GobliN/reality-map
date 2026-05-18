@@ -21,7 +21,7 @@ npx reality-map
 
 Opens an interactive dependency map in your browser in seconds.
 
-![reality-map screenshot](https://raw.githubusercontent.com/g0GobliN/reality-map/main/public/screenshot.png)
+![reality-map screenshot](https://raw.githubusercontent.com/g0GobliN/reality-map/main/packages/reality-map/public/screenshot.png)
 
 ---
 
