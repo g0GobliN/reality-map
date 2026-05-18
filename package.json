@@ -1,9 +1,11 @@
 {
   "name": "reality-map",
   "description": "Visual architecture explorer for codebases. Zero config, zero upload, runs entirely local.",
-  "private": true,
   "sideEffects": false,
   "type": "module",
+  "bin": {
+    "reality-map": "./bin/index.js"
+  },
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
@@ -88,5 +90,6 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^7.3.1"
-  }
+  },
+  "version": "0.1.0"
 }
