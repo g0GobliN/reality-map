@@ -194,6 +194,15 @@ Everything runs locally. No files, paths, or code are ever uploaded anywhere.
 
 ---
 
+## Contributing
+
+- Maintained by [Vishal Gurung](https://github.com/g0GobliN).
+- If you use or share `reality-map`, please credit the author and link back to `https://github.com/g0GobliN/reality-map`.
+- Contributions are welcome via pull requests. Please open an issue first to discuss larger changes or feature requests.
+- All changes are reviewed and merged by the maintainer.
+
+---
+
 ## License
 
 MIT © [Vishal Gurung](https://github.com/g0GobliN)

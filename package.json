@@ -1,5 +1,6 @@
 {
-  "name": "tanstack_start_ts",
+  "name": "reality-map",
+  "description": "Visual architecture explorer for codebases. Zero config, zero upload, runs entirely local.",
   "private": true,
   "sideEffects": false,
   "type": "module",

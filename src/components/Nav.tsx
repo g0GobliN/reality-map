@@ -103,7 +103,7 @@ export function Nav() {
             </Sheet>
 
             <a
-              href="https://github.com"
+              href="https://github.com/g0GobliN/reality-map"
               target="_blank"
               rel="noreferrer noopener"
               className="hidden h-9 items-center gap-1.5 rounded-md px-3 text-sm text-muted-foreground transition hover:text-foreground sm:inline-flex"
