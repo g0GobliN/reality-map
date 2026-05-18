@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/img/git_logo.PNG" alt="RealityMap Logo" width="600" />
+  <img src="src/img/git_logo.PNG" alt="RealityMap Logo" width="280" />
 </p>
 
 # reality-map
