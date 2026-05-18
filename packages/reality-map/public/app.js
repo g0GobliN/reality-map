@@ -1,6 +1,12 @@
 /* RealityMap dashboard — vanilla SVG + multi-view, zero deps */
 (async function () {
-  const TONE = { cyan: "#67e8f9", violet: "#a78bfa", emerald: "#6ee7b7", amber: "#fbbf24", rose: "#fb7185" };
+  const TONE = {
+    cyan: "#67e8f9",
+    violet: "#a78bfa",
+    emerald: "#6ee7b7",
+    amber: "#fbbf24",
+    rose: "#fb7185",
+  };
 
   // ── DOM refs ──────────────────────────────────────────────────
   const svg = document.getElementById("canvas");
@@ -50,7 +56,6 @@
   let activeTab = "map";
   let drawerData = null; // { type: 'module'|'file', id }
   let allSymbols = []; // for symbol search filtering
-
 
   // ── Depth select ──────────────────────────────────────────────
   function fillDepthSelect() {
@@ -124,11 +129,19 @@
     const cycles = depthGraph.cycles.filter((cy) => cy.every((n) => nodeSet.has(n)));
     const loc = nodes.reduce((a, n) => a + (n.loc || 0), 0);
     return {
-      ...depthGraph, nodes, edges, cycles,
-      stats: { ...(depthGraph.stats || {}), modules: nodes.length, edges: edges.length, cycles: cycles.length, loc },
+      ...depthGraph,
+      nodes,
+      edges,
+      cycles,
+      stats: {
+        ...(depthGraph.stats || {}),
+        modules: nodes.length,
+        edges: edges.length,
+        cycles: cycles.length,
+        loc,
+      },
     };
   }
-
 
   // ── File Drawer ───────────────────────────────────────────────
   // Breadcrumb stack: [{type, id, label}]
@@ -151,7 +164,10 @@
   function renderDrawerBreadcrumb() {
     const bc = document.getElementById("drawer-breadcrumb");
     if (!bc) return;
-    if (drawerStack.length === 0) { bc.hidden = true; return; }
+    if (drawerStack.length === 0) {
+      bc.hidden = true;
+      return;
+    }
     bc.hidden = false;
     bc.innerHTML = "";
     drawerStack.forEach((entry, i) => {
@@ -177,7 +193,11 @@
 
   async function showModuleDrawer(moduleId, pushToStack = true) {
     if (pushToStack && drawerData) {
-      drawerStack.push({ type: drawerData.type, id: drawerData.id, label: drawerData.id.split("/").pop() });
+      drawerStack.push({
+        type: drawerData.type,
+        id: drawerData.id,
+        label: drawerData.id.split("/").pop(),
+      });
     }
     drawerData = { type: "module", id: moduleId };
     const depth = view.depth;
@@ -195,7 +215,9 @@
     // Fetch file list for this module
     let filesData = { files: [] };
     try {
-      filesData = await fetch(`/api/module/${encodeURIComponent(moduleId)}/files?depth=${depth}`).then((r) => r.json());
+      filesData = await fetch(
+        `/api/module/${encodeURIComponent(moduleId)}/files?depth=${depth}`,
+      ).then((r) => r.json());
     } catch {}
 
     // Build file list
@@ -225,7 +247,11 @@
 
   async function showFileDrawer(filePath, pushToStack = true) {
     if (pushToStack && drawerData) {
-      drawerStack.push({ type: drawerData.type, id: drawerData.id, label: drawerData.id.split("/").pop() });
+      drawerStack.push({
+        type: drawerData.type,
+        id: drawerData.id,
+        label: drawerData.id.split("/").pop(),
+      });
     }
     drawerData = { type: "file", id: filePath };
     let data = { path: filePath, imports: { specs: [], details: [] }, symbols: [], loc: 0 };
@@ -256,8 +282,22 @@
     symbols.forEach((s) => {
       const item = document.createElement("div");
       item.className = "sym-item";
-      const badgeClass = s.type === "function" ? "fn" : s.type === "class" ? "cls" : s.type === "interface" ? "iface" : "type";
-      const badgeLabel = s.type === "function" ? "fn" : s.type === "class" ? "cls" : s.type === "interface" ? "if" : "T";
+      const badgeClass =
+        s.type === "function"
+          ? "fn"
+          : s.type === "class"
+            ? "cls"
+            : s.type === "interface"
+              ? "iface"
+              : "type";
+      const badgeLabel =
+        s.type === "function"
+          ? "fn"
+          : s.type === "class"
+            ? "cls"
+            : s.type === "interface"
+              ? "if"
+              : "T";
       item.innerHTML = `<span class="sym-badge ${badgeClass}">${badgeLabel}</span><span class="sym-name">${s.name}</span><span class="sym-line">L${s.line}</span>`;
       list.appendChild(item);
     });
@@ -287,7 +327,6 @@
     const filtered = q ? allSymbols.filter((s) => s.name.toLowerCase().includes(q)) : allSymbols;
     renderSymbols(filtered);
   });
-
 
   // ── Global search (Ctrl+K / /) ────────────────────────────────
   let searchIdx = -1;
@@ -331,9 +370,14 @@
 
   globalSearch.addEventListener("input", async () => {
     const q = globalSearch.value.trim();
-    if (!q) { globalSearchResults.hidden = true; return; }
+    if (!q) {
+      globalSearchResults.hidden = true;
+      return;
+    }
     try {
-      const data = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=30`).then((r) => r.json());
+      const data = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=30`).then((r) =>
+        r.json(),
+      );
       showSearchResults(data.results || []);
     } catch {}
   });
@@ -357,7 +401,9 @@
   });
 
   globalSearch.addEventListener("blur", () => {
-    setTimeout(() => { globalSearchResults.hidden = true; }, 150);
+    setTimeout(() => {
+      globalSearchResults.hidden = true;
+    }, 150);
   });
 
   document.addEventListener("keydown", (e) => {
@@ -367,7 +413,6 @@
       globalSearch.select();
     }
   });
-
 
   // ── Module click: drill-in or open drawer at max depth ────────
   function onModuleClick(moduleId) {
@@ -416,7 +461,10 @@
       return;
     }
     const n = graph.nodes.find((x) => x.id === selected);
-    if (!n) { detailPanel.textContent = "—"; return; }
+    if (!n) {
+      detailPanel.textContent = "—";
+      return;
+    }
     const lines = [
       n.label,
       "fan-in " + (n.fanIn ?? 0) + " · fan-out " + (n.fanOut ?? 0),
@@ -427,7 +475,6 @@
     detailPanel.textContent = lines.join("\n");
     detailPanel.className = "detail mono";
   }
-
 
   // ── SVG helpers ───────────────────────────────────────────────
   const NS = "http://www.w3.org/2000/svg";
@@ -447,8 +494,7 @@
 
     if (selected && !graph.nodes.some((n) => n.id === selected)) selected = null;
 
-    stats.textContent =
-      `${graph.stats.files} files · ${graph.stats.modules} modules · ${graph.stats.edges} edges · ${graph.stats.cycles} cycle(s) · ${(graph.stats.loc || 0).toLocaleString()} loc`;
+    stats.textContent = `${graph.stats.files} files · ${graph.stats.modules} modules · ${graph.stats.edges} edges · ${graph.stats.cycles} cycle(s) · ${(graph.stats.loc || 0).toLocaleString()} loc`;
     const rootShort = meta.root.split("/").slice(-2).join("/");
     hud.textContent = `~ ${rootShort}${view.prefix ? " · " + view.prefix : ""} · depth ${view.depth}/${maxDepth}`;
 
@@ -465,7 +511,9 @@
     });
 
     cycleList.innerHTML =
-      graph.cycles.length === 0 ? `<div class="dim mono" style="padding:6px 8px">none detected ✓</div>` : "";
+      graph.cycles.length === 0
+        ? `<div class="dim mono" style="padding:6px 8px">none detected ✓</div>`
+        : "";
     graph.cycles.slice(0, 8).forEach((cy) => {
       const item = document.createElement("div");
       item.className = "row warn";
@@ -496,7 +544,6 @@
     draw(graph);
   }
 
-
   // ── Insights & Files tabs ─────────────────────────────────────
   function fillTable(tbody, rows, cols) {
     tbody.innerHTML = "";
@@ -526,10 +573,26 @@
       chip(s.uniquePackages + " packages"),
       chip(s.isolatedInternalFiles + " isolated files"),
     ].join("");
-    fillTable(document.querySelector("#tbl-top-loc tbody"), ins.topFilesByLoc || [], ["path", "loc"]);
-    fillTable(document.querySelector("#tbl-imported tbody"), ins.topImported || [], ["path", "count", "loc"]);
-    fillTable(document.querySelector("#tbl-hubs tbody"), ins.hubs || [], ["path", "in", "out", "score"]);
-    fillTable(document.querySelector("#tbl-zero tbody"), ins.zeroInternalImporters || [], ["path", "loc", "internalExports"]);
+    fillTable(document.querySelector("#tbl-top-loc tbody"), ins.topFilesByLoc || [], [
+      "path",
+      "loc",
+    ]);
+    fillTable(document.querySelector("#tbl-imported tbody"), ins.topImported || [], [
+      "path",
+      "count",
+      "loc",
+    ]);
+    fillTable(document.querySelector("#tbl-hubs tbody"), ins.hubs || [], [
+      "path",
+      "in",
+      "out",
+      "score",
+    ]);
+    fillTable(document.querySelector("#tbl-zero tbody"), ins.zeroInternalImporters || [], [
+      "path",
+      "loc",
+      "internalExports",
+    ]);
 
     // Make insight table rows clickable → open file drawer
     ["#tbl-top-loc", "#tbl-imported", "#tbl-hubs", "#tbl-zero"].forEach((sel) => {
@@ -544,18 +607,32 @@
     });
   }
 
-  function chip(t) { return `<span class="chip">${t}</span>`; }
+  function chip(t) {
+    return `<span class="chip">${t}</span>`;
+  }
 
   function renderFilesTable() {
     const ins = scan.insights;
     const hint = document.getElementById("files-trunc");
-    if (!ins || !ins.filesIndex) { hint.textContent = ""; document.querySelector("#tbl-files tbody").innerHTML = ""; return; }
+    if (!ins || !ins.filesIndex) {
+      hint.textContent = "";
+      document.querySelector("#tbl-files tbody").innerHTML = "";
+      return;
+    }
     hint.textContent = ins.filesIndexTruncated
       ? "Showing top " + ins.filesIndexCap + " files by LOC (truncated)."
       : "All scanned files listed.";
     const q = (fileFilter.value || "").trim().toLowerCase();
-    const rows = q ? ins.filesIndex.filter((r) => r.path.toLowerCase().includes(q)) : ins.filesIndex;
-    fillTable(document.querySelector("#tbl-files tbody"), rows.slice(0, 800), ["path", "ext", "loc", "importers", "importees"]);
+    const rows = q
+      ? ins.filesIndex.filter((r) => r.path.toLowerCase().includes(q))
+      : ins.filesIndex;
+    fillTable(document.querySelector("#tbl-files tbody"), rows.slice(0, 800), [
+      "path",
+      "ext",
+      "loc",
+      "importers",
+      "importees",
+    ]);
 
     // Make file rows clickable → open file drawer
     const tbody = document.querySelector("#tbl-files tbody");
@@ -569,16 +646,21 @@
     }
   }
 
-  fileFilter.addEventListener("input", () => { if (activeTab === "files") renderFilesTable(); });
-
+  fileFilter.addEventListener("input", () => {
+    if (activeTab === "files") renderFilesTable();
+  });
 
   // ── Fit & Draw ────────────────────────────────────────────────
   function fit(graph) {
     if (!graph.nodes.length) return;
-    const xs = graph.nodes.map((n) => n.x), ys = graph.nodes.map((n) => n.y);
-    const minX = Math.min(...xs) - 80, maxX = Math.max(...xs) + 280;
-    const minY = Math.min(...ys) - 80, maxY = Math.max(...ys) + 180;
-    const w = svg.clientWidth, h = svg.clientHeight;
+    const xs = graph.nodes.map((n) => n.x),
+      ys = graph.nodes.map((n) => n.y);
+    const minX = Math.min(...xs) - 80,
+      maxX = Math.max(...xs) + 280;
+    const minY = Math.min(...ys) - 80,
+      maxY = Math.max(...ys) + 180;
+    const w = svg.clientWidth,
+      h = svg.clientHeight;
     const k = Math.min(w / (maxX - minX), h / (maxY - minY), 1.2);
     view.k = k;
     view.x = (w - (maxX - minX) * k) / 2 - minX * k;
@@ -602,7 +684,8 @@
     const rootG = el("g", { transform: `translate(${view.x} ${view.y}) scale(${view.k})` });
     svg.appendChild(rootG);
 
-    const NW = 220, NH = 70;
+    const NW = 220,
+      NH = 70;
     const byId = new Map(graph.nodes.map((n) => [n.id, n]));
     const incidentToSelected = new Set();
     if (selected) {
@@ -613,20 +696,25 @@
 
     const edgesG = el("g");
     graph.edges.forEach((e) => {
-      const a = byId.get(e.source), b = byId.get(e.target);
+      const a = byId.get(e.source),
+        b = byId.get(e.target);
       if (!a || !b) return;
-      const x1 = a.x + NW, y1 = a.y + NH / 2;
-      const x2 = b.x, y2 = b.y + NH / 2;
+      const x1 = a.x + NW,
+        y1 = a.y + NH / 2;
+      const x2 = b.x,
+        y2 = b.y + NH / 2;
       const cx = (x1 + x2) / 2;
       const d = `M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`;
       const cls = ["edge"];
       if (a.warn || b.warn) cls.push("warn");
-      if (e.weight >= 3) cls.push("hot", "animated"); else cls.push("animated");
+      if (e.weight >= 3) cls.push("hot", "animated");
+      else cls.push("animated");
       if (selected && !incidentToSelected.has(e.id)) cls.push("dim");
       const pathEl = el("path", {
-        d, class: cls.join(" "),
+        d,
+        class: cls.join(" "),
         "marker-end": "url(#arrow)",
-        style: `color:${(a.warn || b.warn) ? TONE.rose : TONE.cyan}; stroke:${(a.warn || b.warn) ? TONE.rose : TONE.cyan}`,
+        style: `color:${a.warn || b.warn ? TONE.rose : TONE.cyan}; stroke:${a.warn || b.warn ? TONE.rose : TONE.cyan}`,
       });
       // Edge tooltip on hover
       pathEl.addEventListener("mouseenter", (ev) => {
@@ -658,12 +746,31 @@
       g.dataset.moved = "0";
 
       const accentColor = TONE[n.tone] || TONE.cyan;
-      const dimmed = selected && selected !== n.id &&
-        !graph.edges.some((e) => (e.source === selected && e.target === n.id) || (e.target === selected && e.source === n.id));
+      const dimmed =
+        selected &&
+        selected !== n.id &&
+        !graph.edges.some(
+          (e) =>
+            (e.source === selected && e.target === n.id) ||
+            (e.target === selected && e.source === n.id),
+        );
       g.setAttribute("opacity", dimmed ? "0.35" : "1");
 
-      g.appendChild(el("rect", { class: "node-card", x: 0, y: 0, width: NW, height: NH, rx: 12, stroke: accentColor, "stroke-opacity": 0.5 }));
-      g.appendChild(el("rect", { class: "accent", x: 0, y: 0, width: 4, height: NH, rx: 2, fill: accentColor }));
+      g.appendChild(
+        el("rect", {
+          class: "node-card",
+          x: 0,
+          y: 0,
+          width: NW,
+          height: NH,
+          rx: 12,
+          stroke: accentColor,
+          "stroke-opacity": 0.5,
+        }),
+      );
+      g.appendChild(
+        el("rect", { class: "accent", x: 0, y: 0, width: 4, height: NH, rx: 2, fill: accentColor }),
+      );
 
       const label = el("text", { class: "node-label", x: 16, y: 28 });
       label.textContent = n.label.length > 24 ? n.label.slice(0, 22) + "…" : n.label;
@@ -674,13 +781,49 @@
       g.appendChild(sub);
 
       const wbar = Math.max(6, Math.round((n.loc / barMax) * (NW - 32)));
-      g.appendChild(el("rect", { x: 16, y: 56, width: NW - 32, height: 3, rx: 2, fill: "rgba(255,255,255,0.06)" }));
-      g.appendChild(el("rect", { x: 16, y: 56, width: wbar, height: 3, rx: 2, fill: accentColor, "fill-opacity": 0.7 }));
+      g.appendChild(
+        el("rect", {
+          x: 16,
+          y: 56,
+          width: NW - 32,
+          height: 3,
+          rx: 2,
+          fill: "rgba(255,255,255,0.06)",
+        }),
+      );
+      g.appendChild(
+        el("rect", {
+          x: 16,
+          y: 56,
+          width: wbar,
+          height: 3,
+          rx: 2,
+          fill: accentColor,
+          "fill-opacity": 0.7,
+        }),
+      );
 
       if (n.warn) {
         const badge = el("g", { transform: `translate(${NW - 28} 12)` });
-        badge.appendChild(el("circle", { r: 9, cx: 9, cy: 9, fill: TONE.rose, "fill-opacity": 0.18, stroke: TONE.rose, "stroke-opacity": 0.6 }));
-        const t = el("text", { x: 9, y: 13, "text-anchor": "middle", "font-size": 11, fill: TONE.rose, "font-weight": 700 });
+        badge.appendChild(
+          el("circle", {
+            r: 9,
+            cx: 9,
+            cy: 9,
+            fill: TONE.rose,
+            "fill-opacity": 0.18,
+            stroke: TONE.rose,
+            "stroke-opacity": 0.6,
+          }),
+        );
+        const t = el("text", {
+          x: 9,
+          y: 13,
+          "text-anchor": "middle",
+          "font-size": 11,
+          fill: TONE.rose,
+          "font-weight": 700,
+        });
         t.textContent = "!";
         badge.appendChild(t);
         g.appendChild(badge);
@@ -688,7 +831,14 @@
 
       // "Explore" indicator at max depth
       if (view.depth === maxDepth) {
-        const exploreHint = el("text", { x: NW - 10, y: 14, "text-anchor": "end", "font-size": 9, fill: accentColor, "fill-opacity": 0.6 });
+        const exploreHint = el("text", {
+          x: NW - 10,
+          y: 14,
+          "text-anchor": "end",
+          "font-size": 9,
+          fill: accentColor,
+          "fill-opacity": 0.6,
+        });
         exploreHint.textContent = "⊕";
         g.appendChild(exploreHint);
       }
@@ -696,7 +846,10 @@
       makeDraggable(g, n);
       g.addEventListener("click", (ev) => {
         ev.stopPropagation();
-        if (g.dataset.moved === "1") { g.dataset.moved = "0"; return; }
+        if (g.dataset.moved === "1") {
+          g.dataset.moved = "0";
+          return;
+        }
         onModuleClick(n.id);
       });
 
@@ -705,7 +858,6 @@
 
     drawMinimap(graph);
   }
-
 
   // ── Edge tooltip ──────────────────────────────────────────────
   function showEdgeTooltip(ev, edge, a, b) {
@@ -728,7 +880,11 @@
   async function showEdgeDetails(edge, a, b) {
     // Open drawer showing import details between two modules
     if (drawerData) {
-      drawerStack.push({ type: drawerData.type, id: drawerData.id, label: drawerData.id.split("/").pop() });
+      drawerStack.push({
+        type: drawerData.type,
+        id: drawerData.id,
+        label: drawerData.id.split("/").pop(),
+      });
     }
     drawerData = { type: "edge", id: `${a.id}→${b.id}` };
     drawerTitle.textContent = `${a.id} → ${b.id}`;
@@ -767,13 +923,21 @@
       mm.className = "minimap";
       document.querySelector(".canvas-wrap").appendChild(mm);
     }
-    if (!graph.nodes.length) { mm.innerHTML = ""; return; }
+    if (!graph.nodes.length) {
+      mm.innerHTML = "";
+      return;
+    }
 
-    const W = 140, H = 90;
-    const xs = graph.nodes.map((n) => n.x), ys = graph.nodes.map((n) => n.y);
-    const minX = Math.min(...xs) - 20, maxX = Math.max(...xs) + 240;
-    const minY = Math.min(...ys) - 20, maxY = Math.max(...ys) + 90;
-    const scaleX = W / (maxX - minX || 1), scaleY = H / (maxY - minY || 1);
+    const W = 140,
+      H = 90;
+    const xs = graph.nodes.map((n) => n.x),
+      ys = graph.nodes.map((n) => n.y);
+    const minX = Math.min(...xs) - 20,
+      maxX = Math.max(...xs) + 240;
+    const minY = Math.min(...ys) - 20,
+      maxY = Math.max(...ys) + 90;
+    const scaleX = W / (maxX - minX || 1),
+      scaleY = H / (maxY - minY || 1);
     const sc = Math.min(scaleX, scaleY);
 
     const svgEl = document.createElementNS(NS, "svg");
@@ -810,15 +974,23 @@
     mm.appendChild(svgEl);
   }
 
-
   // ── Drag nodes ────────────────────────────────────────────────
   function makeDraggable(g, n) {
-    let dragging = false, startX, startY, origX, origY, moved = false;
+    let dragging = false,
+      startX,
+      startY,
+      origX,
+      origY,
+      moved = false;
     g.addEventListener("pointerdown", (e) => {
       e.stopPropagation();
-      dragging = true; moved = false; g.dataset.moved = "0";
-      startX = e.clientX; startY = e.clientY;
-      origX = n.x; origY = n.y;
+      dragging = true;
+      moved = false;
+      g.dataset.moved = "0";
+      startX = e.clientX;
+      startY = e.clientY;
+      origX = n.x;
+      origY = n.y;
       g.setPointerCapture(e.pointerId);
     });
     g.addEventListener("pointermove", (e) => {
@@ -827,78 +999,115 @@
       const dy = (e.clientY - startY) / view.k;
       if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
       g.dataset.moved = moved ? "1" : "0";
-      n.x = origX + dx; n.y = origY + dy;
+      n.x = origX + dx;
+      n.y = origY + dy;
       g.setAttribute("transform", `translate(${n.x} ${n.y})`);
       if (currentViewGraph) draw(currentViewGraph);
     });
     g.addEventListener("pointerup", (e) => {
       dragging = false;
-      try { g.releasePointerCapture(e.pointerId); } catch {}
+      try {
+        g.releasePointerCapture(e.pointerId);
+      } catch {}
       if (moved) e.stopPropagation();
     });
   }
 
   // ── Pan & zoom ────────────────────────────────────────────────
-  let panning = false, px, py;
+  let panning = false,
+    px,
+    py;
   svg.addEventListener("pointerdown", (e) => {
-    panning = true; px = e.clientX; py = e.clientY;
+    panning = true;
+    px = e.clientX;
+    py = e.clientY;
     svg.setPointerCapture(e.pointerId);
   });
   svg.addEventListener("pointermove", (e) => {
     if (!panning) return;
-    view.x += e.clientX - px; view.y += e.clientY - py;
-    px = e.clientX; py = e.clientY;
+    view.x += e.clientX - px;
+    view.y += e.clientY - py;
+    px = e.clientX;
+    py = e.clientY;
     if (currentViewGraph) draw(currentViewGraph);
   });
   svg.addEventListener("pointerup", (e) => {
     panning = false;
-    try { svg.releasePointerCapture(e.pointerId); } catch {}
+    try {
+      svg.releasePointerCapture(e.pointerId);
+    } catch {}
   });
   svg.addEventListener("click", () => {
-    if (selected) { selected = null; closeDrawer(); render(); }
+    if (selected) {
+      selected = null;
+      closeDrawer();
+      render();
+    }
   });
-  svg.addEventListener("wheel", (e) => {
-    e.preventDefault();
-    const rect = svg.getBoundingClientRect();
-    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-    const factor = Math.exp(-e.deltaY * 0.0015);
-    const nk = Math.min(2.5, Math.max(0.25, view.k * factor));
-    view.x = mx - (mx - view.x) * (nk / view.k);
-    view.y = my - (my - view.y) * (nk / view.k);
-    view.k = nk;
-    if (currentViewGraph) draw(currentViewGraph);
-  }, { passive: false });
+  svg.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      const mx = e.clientX - rect.left,
+        my = e.clientY - rect.top;
+      const factor = Math.exp(-e.deltaY * 0.0015);
+      const nk = Math.min(2.5, Math.max(0.25, view.k * factor));
+      view.x = mx - (mx - view.x) * (nk / view.k);
+      view.y = my - (my - view.y) * (nk / view.k);
+      view.k = nk;
+      if (currentViewGraph) draw(currentViewGraph);
+    },
+    { passive: false },
+  );
 
   // ── Toolbar buttons ───────────────────────────────────────────
   document.getElementById("fit").onclick = () => {
-    if (currentViewGraph) { fit(currentViewGraph); draw(currentViewGraph); }
+    if (currentViewGraph) {
+      fit(currentViewGraph);
+      draw(currentViewGraph);
+    }
   };
 
   if (backBtn) {
     backBtn.onclick = () => {
       if (stack.length === 0) return;
       const prev = stack.pop();
-      view.prefix = prev.prefix; view.depth = prev.depth;
+      view.prefix = prev.prefix;
+      view.depth = prev.depth;
       depthSelect.value = String(view.depth);
-      selected = null; closeDrawer(); render();
+      selected = null;
+      closeDrawer();
+      render();
     };
   }
 
   async function loadGraph(fromButton) {
     if (fromButton) stats.textContent = "rescanning…";
     const r = fromButton
-      ? await fetch("/api/rescan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ maxDepth: Number(depthSelect.value) || maxDepth }) }).then((x) => x.json())
+      ? await fetch("/api/rescan", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ maxDepth: Number(depthSelect.value) || maxDepth }),
+        }).then((x) => x.json())
       : await fetch("/api/graph").then((x) => x.json());
-    if (r.error) { stats.textContent = "rescan failed: " + r.error; return; }
+    if (r.error) {
+      stats.textContent = "rescan failed: " + r.error;
+      return;
+    }
     scan = r;
     graphsByDepth = scan.graphsByDepth || { 1: scan };
     maxDepth = scan.maxDepth ?? Math.max(1, ...Object.keys(graphsByDepth).map((k) => Number(k)));
     lastGeneratedAt = scan.generatedAt;
     view = { x: 0, y: 0, k: 1, depth: Math.min(view.depth, maxDepth), prefix: null };
     depthSelect.value = String(view.depth);
-    selected = null; stack = [];
-    fillDepthSelect(); depthSelect.value = String(view.depth);
-    closeDrawer(); lastFitKey = ""; render();
+    selected = null;
+    stack = [];
+    fillDepthSelect();
+    depthSelect.value = String(view.depth);
+    closeDrawer();
+    lastFitKey = "";
+    render();
     if (activeTab === "insights") renderInsights();
     if (activeTab === "files") renderFilesTable();
   }
@@ -918,18 +1127,34 @@
   document.addEventListener("keydown", (e) => {
     const tag = e.target && e.target.tagName;
     if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") {
-      if (e.key === "Escape") { e.target.blur(); globalSearchResults.hidden = true; }
+      if (e.key === "Escape") {
+        e.target.blur();
+        globalSearchResults.hidden = true;
+      }
       return;
     }
-    if (e.key === "/" && activeTab === "map") { e.preventDefault(); moduleFilter.focus(); }
-    if (e.key === "f" || e.key === "F") { if (currentViewGraph) { fit(currentViewGraph); draw(currentViewGraph); } }
+    if (e.key === "/" && activeTab === "map") {
+      e.preventDefault();
+      moduleFilter.focus();
+    }
+    if (e.key === "f" || e.key === "F") {
+      if (currentViewGraph) {
+        fit(currentViewGraph);
+        draw(currentViewGraph);
+      }
+    }
     if (e.key === "r" || e.key === "R") loadGraph(true);
-    if (e.key === "Escape") { closeDrawer(); selected = null; render(); }
+    if (e.key === "Escape") {
+      closeDrawer();
+      selected = null;
+      render();
+    }
   });
 
   window.addEventListener("resize", () => {
     if (!currentViewGraph) return;
-    fit(currentViewGraph); draw(currentViewGraph);
+    fit(currentViewGraph);
+    draw(currentViewGraph);
   });
 
   // ── Watch mode auto-refresh ───────────────────────────────────
@@ -945,9 +1170,6 @@
     }, 3200);
   }
 
-  render();
-})();
-
   // ── Health tab ────────────────────────────────────────────────
   async function renderHealth() {
     const wrap = document.getElementById("health-score-wrap");
@@ -956,13 +1178,18 @@
     reasonsEl.innerHTML = "";
 
     let h;
-    try { h = await fetch("/api/health").then(r => r.json()); }
-    catch { wrap.innerHTML = "<span class='dim'>Failed to load health data.</span>"; return; }
+    try {
+      h = await fetch("/api/health").then((r) => r.json());
+    } catch {
+      wrap.innerHTML = "<span class='dim'>Failed to load health data.</span>";
+      return;
+    }
 
     const scoreColor = h.score >= 80 ? "#6ee7b7" : h.score >= 60 ? "#fbbf24" : "#fb7185";
     const circumference = 2 * Math.PI * 50;
     const offset = circumference - (h.score / 100) * circumference;
-    const gradeLabel = { A: "Excellent", B: "Good", C: "Fair", D: "Poor", F: "Critical" }[h.grade] || "";
+    const gradeLabel =
+      { A: "Excellent", B: "Good", C: "Fair", D: "Poor", F: "Critical" }[h.grade] || "";
 
     wrap.innerHTML = `
       <div class="health-ring">
@@ -989,7 +1216,9 @@
     `;
 
     document.getElementById("badge-copy")?.addEventListener("click", () => {
-      navigator.clipboard?.writeText(`![Health ${h.score}/100](https://img.shields.io/badge/health-${h.score}%2F100-${h.score >= 80 ? "brightgreen" : h.score >= 60 ? "yellow" : "red"})`);
+      navigator.clipboard?.writeText(
+        `![Health ${h.score}/100](https://img.shields.io/badge/health-${h.score}%2F100-${h.score >= 80 ? "brightgreen" : h.score >= 60 ? "yellow" : "red"})`,
+      );
     });
 
     if (h.reasons.length === 0) {
@@ -998,14 +1227,21 @@
     }
 
     const icons = { cycles: "🔄", isolated: "🏝", oversized: "📦", hubs: "🕸" };
-    h.reasons.forEach(r => {
+    h.reasons.forEach((r) => {
       const div = document.createElement("div");
       div.className = "health-reason";
       div.innerHTML = `
         <span class="health-reason-icon">${icons[r.kind] || "⚠️"}</span>
         <div class="health-reason-body">
           <div class="health-reason-msg">${r.msg}</div>
-          ${r.samples ? `<div class="health-reason-detail">${r.samples.slice(0,3).map(s => s.path || s).join(" · ")}</div>` : ""}
+          ${
+            r.samples
+              ? `<div class="health-reason-detail">${r.samples
+                  .slice(0, 3)
+                  .map((s) => s.path || s)
+                  .join(" · ")}</div>`
+              : ""
+          }
         </div>
         <span class="health-penalty">−${r.penalty} pts</span>
       `;
@@ -1022,7 +1258,10 @@
   async function runImpactAnalysis() {
     const input = document.getElementById("impact-input");
     const result = document.getElementById("impact-result");
-    const paths = (input.value || "").split("\n").map(s => s.trim()).filter(Boolean);
+    const paths = (input.value || "")
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
     if (!paths.length) return;
 
     result.innerHTML = `<div class="impact-empty">Analyzing…</div>`;
@@ -1032,7 +1271,7 @@
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ paths }),
-      }).then(r => r.json());
+      }).then((r) => r.json());
     } catch {
       result.innerHTML = `<div class="impact-empty">Analysis failed.</div>`;
       return;
@@ -1071,7 +1310,7 @@
       modWrap.innerHTML = `<div style="font-size:11px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.1em">Affected modules</div>`;
       const chips = document.createElement("div");
       chips.className = "impact-modules";
-      data.moduleImpact.forEach(m => {
+      data.moduleImpact.forEach((m) => {
         const cls = m.maxRisk >= 7 ? "risk-high" : m.maxRisk >= 4 ? "risk-med" : "risk-low";
         const chip = document.createElement("span");
         chip.className = `impact-mod-chip ${cls}`;
@@ -1088,13 +1327,17 @@
     tableWrap.innerHTML = `
       <table class="data-table">
         <thead><tr><th>File</th><th>Depth</th><th>LOC</th><th>Risk</th></tr></thead>
-        <tbody>${data.affected.map(f => `
+        <tbody>${data.affected
+          .map(
+            (f) => `
           <tr>
             <td style="color:${f.direct ? "var(--cyan)" : "var(--fg)"}">${f.path}${f.direct ? " <span style='color:var(--muted);font-size:10px'>direct</span>" : ""}</td>
             <td>${f.depth}</td>
             <td>${f.loc}</td>
             <td><span style="color:${f.risk >= 7 ? "var(--rose)" : f.risk >= 4 ? "var(--amber)" : "var(--emerald)"};font-weight:600">${f.risk}/10</span></td>
-          </tr>`).join("")}
+          </tr>`,
+          )
+          .join("")}
         </tbody>
       </table>
     `;
@@ -1120,8 +1363,12 @@
     tbody.innerHTML = "";
 
     let data;
-    try { data = await fetch("/api/deadcode").then(r => r.json()); }
-    catch { summary.innerHTML = "<span class='dim'>Failed to load.</span>"; return; }
+    try {
+      data = await fetch("/api/deadcode").then((r) => r.json());
+    } catch {
+      summary.innerHTML = "<span class='dim'>Failed to load.</span>";
+      return;
+    }
 
     summary.innerHTML = [
       chip(`${data.totalFiles} total files`),
@@ -1130,7 +1377,7 @@
     ].join("");
 
     tbody.innerHTML = "";
-    (data.candidates || []).forEach(f => {
+    (data.candidates || []).forEach((f) => {
       const tr = document.createElement("tr");
       const confClass = f.confidence >= 80 ? "high" : f.confidence < 50 ? "low" : "";
       tr.innerHTML = `

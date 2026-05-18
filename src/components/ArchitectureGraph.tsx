@@ -9,8 +9,16 @@ import ReactFlow, {
   type NodeProps,
 } from "reactflow";
 import {
-  Globe, Server, ShieldCheck, Database, Container, Boxes,
-  Cpu, GitBranch, AlertTriangle, FlameKindling,
+  Globe,
+  Server,
+  ShieldCheck,
+  Database,
+  Container,
+  Boxes,
+  Cpu,
+  GitBranch,
+  AlertTriangle,
+  FlameKindling,
 } from "lucide-react";
 
 type NData = {
@@ -34,12 +42,24 @@ function ModuleNode({ data }: NodeProps<NData>) {
   const { Icon } = data;
   const tone = data.tone ?? "cyan";
   return (
-    <div className={`group relative w-[200px] rounded-xl border bg-gradient-to-b ${toneMap[tone]} p-px shadow-[0_10px_40px_-10px_rgba(0,0,0,0.6)]`}>
+    <div
+      className={`group relative w-[200px] rounded-xl border bg-gradient-to-b ${toneMap[tone]} p-px shadow-[0_10px_40px_-10px_rgba(0,0,0,0.6)]`}
+    >
       <div className="rounded-[11px] glass-strong p-3">
-        <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-foreground/40" />
-        <Handle type="source" position={Position.Right} className="!h-2 !w-2 !border-0 !bg-foreground/40" />
+        <Handle
+          type="target"
+          position={Position.Left}
+          className="!h-2 !w-2 !border-0 !bg-foreground/40"
+        />
+        <Handle
+          type="source"
+          position={Position.Right}
+          className="!h-2 !w-2 !border-0 !bg-foreground/40"
+        />
         <div className="flex items-center gap-2">
-          <span className={`grid h-8 w-8 place-items-center rounded-lg border border-border/60 bg-background/60`}>
+          <span
+            className={`grid h-8 w-8 place-items-center rounded-lg border border-border/60 bg-background/60`}
+          >
             <Icon className="h-4 w-4" />
           </span>
           <div className="min-w-0">
@@ -72,19 +92,130 @@ const nodeTypes = { mod: ModuleNode };
 export function ArchitectureGraph({ compact = false }: { compact?: boolean }) {
   const { nodes, edges } = useMemo(() => {
     const nodes: Node<NData>[] = [
-      { id: "web", type: "mod", position: { x: 40, y: 40 }, data: { label: "web/", sub: "Next.js · 14 routes", Icon: Globe, tone: "cyan", badge: "42 files" } },
-      { id: "ui", type: "mod", position: { x: 40, y: 180 }, data: { label: "ui/components", sub: "design system", Icon: Boxes, tone: "cyan", badge: "118 files" } },
-      { id: "api", type: "mod", position: { x: 360, y: 40 }, data: { label: "api/", sub: "edge functions", Icon: Server, tone: "violet", badge: "23 routes" } },
-      { id: "auth", type: "mod", position: { x: 360, y: 200 }, data: { label: "auth/", sub: "session · oauth", Icon: ShieldCheck, tone: "violet", badge: "JWT · OAuth" } },
-      { id: "core", type: "mod", position: { x: 360, y: 360 }, data: { label: "core/utils", sub: "circular dep", Icon: GitBranch, tone: "rose", badge: "cycle: 4 nodes", warn: true } },
-      { id: "db", type: "mod", position: { x: 700, y: 110 }, data: { label: "db/postgres", sub: "12 tables", Icon: Database, tone: "emerald", badge: "RLS · pgvector" } },
-      { id: "worker", type: "mod", position: { x: 700, y: 280 }, data: { label: "workers/", sub: "queue · cron", Icon: Cpu, tone: "amber", badge: "hot: 38%", warn: true } },
-      { id: "docker", type: "mod", position: { x: 700, y: 430 }, data: { label: "infra/docker", sub: "5 services", Icon: Container, tone: "cyan", badge: "compose.yml" } },
-      { id: "legacy", type: "mod", position: { x: 40, y: 360 }, data: { label: "legacy/v1", sub: "dead code", Icon: FlameKindling, tone: "rose", badge: "0 imports", warn: true } },
+      {
+        id: "web",
+        type: "mod",
+        position: { x: 40, y: 40 },
+        data: {
+          label: "web/",
+          sub: "Next.js · 14 routes",
+          Icon: Globe,
+          tone: "cyan",
+          badge: "42 files",
+        },
+      },
+      {
+        id: "ui",
+        type: "mod",
+        position: { x: 40, y: 180 },
+        data: {
+          label: "ui/components",
+          sub: "design system",
+          Icon: Boxes,
+          tone: "cyan",
+          badge: "118 files",
+        },
+      },
+      {
+        id: "api",
+        type: "mod",
+        position: { x: 360, y: 40 },
+        data: {
+          label: "api/",
+          sub: "edge functions",
+          Icon: Server,
+          tone: "violet",
+          badge: "23 routes",
+        },
+      },
+      {
+        id: "auth",
+        type: "mod",
+        position: { x: 360, y: 200 },
+        data: {
+          label: "auth/",
+          sub: "session · oauth",
+          Icon: ShieldCheck,
+          tone: "violet",
+          badge: "JWT · OAuth",
+        },
+      },
+      {
+        id: "core",
+        type: "mod",
+        position: { x: 360, y: 360 },
+        data: {
+          label: "core/utils",
+          sub: "circular dep",
+          Icon: GitBranch,
+          tone: "rose",
+          badge: "cycle: 4 nodes",
+          warn: true,
+        },
+      },
+      {
+        id: "db",
+        type: "mod",
+        position: { x: 700, y: 110 },
+        data: {
+          label: "db/postgres",
+          sub: "12 tables",
+          Icon: Database,
+          tone: "emerald",
+          badge: "RLS · pgvector",
+        },
+      },
+      {
+        id: "worker",
+        type: "mod",
+        position: { x: 700, y: 280 },
+        data: {
+          label: "workers/",
+          sub: "queue · cron",
+          Icon: Cpu,
+          tone: "amber",
+          badge: "hot: 38%",
+          warn: true,
+        },
+      },
+      {
+        id: "docker",
+        type: "mod",
+        position: { x: 700, y: 430 },
+        data: {
+          label: "infra/docker",
+          sub: "5 services",
+          Icon: Container,
+          tone: "cyan",
+          badge: "compose.yml",
+        },
+      },
+      {
+        id: "legacy",
+        type: "mod",
+        position: { x: 40, y: 360 },
+        data: {
+          label: "legacy/v1",
+          sub: "dead code",
+          Icon: FlameKindling,
+          tone: "rose",
+          badge: "0 imports",
+          warn: true,
+        },
+      },
     ];
 
-    const e = (id: string, source: string, target: string, tone: "cyan" | "violet" | "amber" | "rose" = "cyan", animated = true): Edge => ({
-      id, source, target, animated,
+    const e = (
+      id: string,
+      source: string,
+      target: string,
+      tone: "cyan" | "violet" | "amber" | "rose" = "cyan",
+      animated = true,
+    ): Edge => ({
+      id,
+      source,
+      target,
+      animated,
       style: {
         stroke: `var(--${tone})`,
         strokeWidth: 1.4,
@@ -111,7 +242,9 @@ export function ArchitectureGraph({ compact = false }: { compact?: boolean }) {
   }, []);
 
   return (
-    <div className={`relative w-full ${compact ? "h-[420px]" : "h-[560px]"} overflow-hidden rounded-2xl glass ring-aurora`}>
+    <div
+      className={`relative w-full ${compact ? "h-[420px]" : "h-[560px]"} overflow-hidden rounded-2xl glass ring-aurora`}
+    >
       {/* heatmap overlays */}
       <div className="pointer-events-none absolute -left-16 top-40 h-64 w-64 rounded-full bg-rose/20 blur-3xl" />
       <div className="pointer-events-none absolute right-10 top-10 h-56 w-56 rounded-full bg-violet/20 blur-3xl" />
