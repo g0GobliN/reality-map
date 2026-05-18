@@ -634,29 +634,29 @@ function LocalFirst() {
 
 function DependencySection() {
   const packages = [
-    { name: "moment",        risk: 7.5, tags: ["unused", "deprecated", "outdated (major)"], tone: "rose" },
-    { name: "firebase-admin",risk: 5.0, tags: ["high"],                                    tone: "amber" },
-    { name: "lodash",        risk: 3.5, tags: ["outdated (major)"],                        tone: "amber" },
-    { name: "date-fns",      risk: 0,   tags: ["safe"],                                    tone: "emerald" },
-    { name: "eslint",        risk: 0,   tags: ["config-only"],                             tone: "cyan" },
-    { name: "uuid",          risk: 1.0, tags: ["unused"],                                  tone: "cyan" },
+    { name: "moment", risk: 7.5, tags: ["unused", "deprecated", "outdated (major)"], tone: "rose" },
+    { name: "firebase-admin", risk: 5.0, tags: ["high"], tone: "amber" },
+    { name: "lodash", risk: 3.5, tags: ["outdated (major)"], tone: "amber" },
+    { name: "date-fns", risk: 0, tags: ["safe"], tone: "emerald" },
+    { name: "eslint", risk: 0, tags: ["config-only"], tone: "cyan" },
+    { name: "uuid", risk: 1.0, tags: ["unused"], tone: "cyan" },
   ] as const;
 
   const toneTag: Record<string, string> = {
-    rose:    "text-rose border-rose/40 bg-rose/10",
-    amber:   "text-amber border-amber/40 bg-amber/10",
+    rose: "text-rose border-rose/40 bg-rose/10",
+    amber: "text-amber border-amber/40 bg-amber/10",
     emerald: "text-emerald border-emerald/40 bg-emerald/10",
-    cyan:    "text-cyan border-cyan/40 bg-cyan/10",
+    cyan: "text-cyan border-cyan/40 bg-cyan/10",
   };
 
   const summary = [
-    { label: "Total",      value: "128", color: "text-foreground" },
-    { label: "Safe",       value: "103", color: "text-emerald" },
-    { label: "Medium",     value: "17",  color: "text-amber" },
-    { label: "High Risk",  value: "6",   color: "text-rose" },
-    { label: "Unused",     value: "14",  color: "text-muted-foreground" },
-    { label: "Outdated",   value: "21",  color: "text-amber" },
-    { label: "Deprecated", value: "3",   color: "text-violet" },
+    { label: "Total", value: "128", color: "text-foreground" },
+    { label: "Safe", value: "103", color: "text-emerald" },
+    { label: "Medium", value: "17", color: "text-amber" },
+    { label: "High Risk", value: "6", color: "text-rose" },
+    { label: "Unused", value: "14", color: "text-muted-foreground" },
+    { label: "Outdated", value: "21", color: "text-amber" },
+    { label: "Deprecated", value: "3", color: "text-violet" },
   ] as const;
 
   return (
@@ -684,7 +684,9 @@ function DependencySection() {
               {summary.map((s) => (
                 <div key={s.label} className="flex flex-col items-center">
                   <span className={`font-mono text-lg font-semibold ${s.color}`}>{s.value}</span>
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {s.label}
+                  </span>
                 </div>
               ))}
             </div>
@@ -695,23 +697,36 @@ function DependencySection() {
                 <thead>
                   <tr className="border-b border-border">
                     {["Package", "Risk", "Status"].map((h) => (
-                      <th key={h} className="px-5 py-2.5 text-left font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{h}</th>
+                      <th
+                        key={h}
+                        className="px-5 py-2.5 text-left font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
+                      >
+                        {h}
+                      </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {packages.map((pkg) => (
-                    <tr key={pkg.name} className="border-b border-border/50 transition hover:bg-surface">
+                    <tr
+                      key={pkg.name}
+                      className="border-b border-border/50 transition hover:bg-surface"
+                    >
                       <td className="px-5 py-3 font-mono text-[13px] font-medium">{pkg.name}</td>
                       <td className="px-5 py-3">
-                        <span className={`font-mono text-sm font-bold ${pkg.risk >= 6 ? "text-rose" : pkg.risk >= 3 ? "text-amber" : pkg.risk > 0 ? "text-amber/70" : "text-emerald"}`}>
+                        <span
+                          className={`font-mono text-sm font-bold ${pkg.risk >= 6 ? "text-rose" : pkg.risk >= 3 ? "text-amber" : pkg.risk > 0 ? "text-amber/70" : "text-emerald"}`}
+                        >
                           {pkg.risk > 0 ? pkg.risk.toFixed(1) : "—"}
                         </span>
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex flex-wrap gap-1.5">
                           {pkg.tags.map((tag) => (
-                            <span key={tag} className={`inline-flex items-center rounded border px-1.5 py-px font-mono text-[10px] font-semibold ${toneTag[pkg.tone]}`}>
+                            <span
+                              key={tag}
+                              className={`inline-flex items-center rounded border px-1.5 py-px font-mono text-[10px] font-semibold ${toneTag[pkg.tone]}`}
+                            >
                               {tag}
                             </span>
                           ))}
@@ -737,7 +752,8 @@ function DependencySection() {
           <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-amber/30 bg-amber/5 px-4 py-3">
             <AlertTriangle className="h-4 w-4 flex-none text-amber" />
             <p className="font-mono text-[11px] text-amber">
-              Overlapping ecosystems detected — <span className="font-semibold">moment · date-fns · dayjs</span> all installed
+              Overlapping ecosystems detected —{" "}
+              <span className="font-semibold">moment · date-fns · dayjs</span> all installed
             </p>
           </div>
         </motion.div>
@@ -772,7 +788,9 @@ function DependencySection() {
           ].map(({ Icon, t, d, tone }) => (
             <div key={t} className="glass rounded-xl p-4 transition hover:bg-surface-2">
               <div className="flex items-start gap-3">
-                <span className={`mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg border border-${tone}/40 bg-${tone}/10 text-${tone}`}>
+                <span
+                  className={`mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg border border-${tone}/40 bg-${tone}/10 text-${tone}`}
+                >
                   <Icon className="h-4 w-4" />
                 </span>
                 <div>
@@ -787,11 +805,25 @@ function DependencySection() {
           <div className="glass-strong rounded-xl p-4">
             <div className="font-mono text-[11px] text-muted-foreground">terminal</div>
             <div className="mt-2 space-y-1 font-mono text-[12px]">
-              <div><span className="text-muted-foreground">$</span> <span className="text-foreground">npx reality-map --deps</span></div>
-              <div className="text-muted-foreground">→ moment      <span className="text-rose">risk 7.5</span>  [unused, deprecated]</div>
-              <div className="text-muted-foreground">→ lodash      <span className="text-amber">risk 3.5</span>  [outdated (major)]</div>
-              <div className="text-muted-foreground">→ date-fns    <span className="text-emerald">risk 0  </span>  [safe]</div>
-              <div className="mt-2 text-muted-foreground">→ <span className="text-amber">⚠ overlapping ecosystems: moment + date-fns + dayjs</span></div>
+              <div>
+                <span className="text-muted-foreground">$</span>{" "}
+                <span className="text-foreground">npx reality-map --deps</span>
+              </div>
+              <div className="text-muted-foreground">
+                → moment <span className="text-rose">risk 7.5</span> [unused, deprecated]
+              </div>
+              <div className="text-muted-foreground">
+                → lodash <span className="text-amber">risk 3.5</span> [outdated (major)]
+              </div>
+              <div className="text-muted-foreground">
+                → date-fns <span className="text-emerald">risk 0 </span> [safe]
+              </div>
+              <div className="mt-2 text-muted-foreground">
+                →{" "}
+                <span className="text-amber">
+                  ⚠ overlapping ecosystems: moment + date-fns + dayjs
+                </span>
+              </div>
             </div>
           </div>
         </div>
