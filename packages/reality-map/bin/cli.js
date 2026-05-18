@@ -522,7 +522,7 @@ function buildDependencyTree(scan, modId, maxDepth) {
         } else {
           log(`  ${dim("rules")}    ${bold(ruleResult.violations.length)} violation(s):`);
           for (const v of ruleResult.violations.slice(0, 12)) {
-            log(`    ${dim("·")} ${v.from} ${dim("→")} ${v.target || v.to} ${dim(`(${v.fromLayer}→${v.toLayer}, w=${v.weight})`)}`);
+            log(`    ${dim("·")} ${v.from} ${dim("→")} ${v.to} ${dim(`(${v.fromLayer}→${v.toLayer}, w=${v.weight})`)}`);
           }
         }
       }
