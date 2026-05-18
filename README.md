@@ -76,6 +76,7 @@ Full local analysis of your `package.json` — no registry upload, works offline
 **Vulnerability scan** — runs `npm audit` locally and surfaces results grouped by severity: `critical` / `high` / `moderate` / `low`. Gracefully skips if `npm audit` is unavailable.
 
 **Outdated packages** — uses `npm outdated` to detect stale versions, then classifies the gap:
+
 - `outdated (major)` — breaking version behind, shown in amber
 - `outdated (minor)` — non-breaking feature behind, shown dim
 - `outdated (patch)` — safe bug-fix behind, low noise
@@ -84,16 +85,16 @@ Full local analysis of your `package.json` — no registry upload, works offline
 
 **Risk score (0–10)** — per-package score combining all signals:
 
-| Signal | Points |
-|---|---|
-| Critical vulnerability | +4 |
-| High vulnerability | +3 |
-| Moderate vulnerability | +2 |
-| Low vulnerability | +0.5 |
-| Deprecated | +2 |
-| Unused (runtime dep) | +1 |
-| Major version behind | +1.5 |
-| Minor version behind | +0.5 |
+| Signal                 | Points |
+| ---------------------- | ------ |
+| Critical vulnerability | +4     |
+| High vulnerability     | +3     |
+| Moderate vulnerability | +2     |
+| Low vulnerability      | +0.5   |
+| Deprecated             | +2     |
+| Unused (runtime dep)   | +1     |
+| Major version behind   | +1.5   |
+| Minor version behind   | +0.5   |
 
 **Overlapping ecosystem detection** — warns when multiple libraries serve the same purpose (e.g. `moment` + `date-fns` + `dayjs`), covering 10 ecosystem groups: date, HTTP client, state management, forms, CSS-in-JS, animation, validation, ORM, routing, and data-fetching.
 
@@ -200,17 +201,17 @@ legacy/
 
 The local server exposes a REST API you can use in scripts:
 
-| Endpoint             | Method | Description                                         |
-| -------------------- | ------ | --------------------------------------------------- |
-| `/api/graph`         | GET    | Full scan data                                      |
-| `/api/health`        | GET    | Health score (0–100)                                |
-| `/api/impact`        | POST   | Change impact — body: `{ "paths": ["src/foo.ts"] }` |
-| `/api/deadcode`      | GET    | Dead code candidates                                |
+| Endpoint             | Method | Description                                                    |
+| -------------------- | ------ | -------------------------------------------------------------- |
+| `/api/graph`         | GET    | Full scan data                                                 |
+| `/api/health`        | GET    | Health score (0–100)                                           |
+| `/api/impact`        | POST   | Change impact — body: `{ "paths": ["src/foo.ts"] }`            |
+| `/api/deadcode`      | GET    | Dead code candidates                                           |
 | `/api/deps`          | GET    | Dependency intelligence — unused, vulns, outdated, risk scores |
-| `/api/search?q=`     | GET    | File search                                         |
-| `/api/file/:path`    | GET    | File symbols + imports                              |
-| `/api/rescan`        | POST   | Re-scan project                                     |
-| `/api/snapshot.html` | GET    | Download self-contained HTML snapshot               |
+| `/api/search?q=`     | GET    | File search                                                    |
+| `/api/file/:path`    | GET    | File symbols + imports                                         |
+| `/api/rescan`        | POST   | Re-scan project                                                |
+| `/api/snapshot.html` | GET    | Download self-contained HTML snapshot                          |
 
 ---
 
