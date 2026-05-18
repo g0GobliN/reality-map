@@ -14,6 +14,7 @@ const { loadBaseline, diffScans } = require("../lib/diff.js");
 const { loadRules, checkRules } = require("../lib/rules.js");
 const { buildOrphanReport } = require("../lib/orphans.js");
 const { renderHtml } = require("../lib/html-export.js");
+const { extStats, unusedDeps, shortestPath, inspectModule, filesCsv, RULES_TEMPLATE } = require("../lib/extras.js");
 
 function printMachineError(code, message, extra) {
   const payload = { type: "reality-map-error", code, message, ...extra };
@@ -51,6 +52,15 @@ function parseArgs(argv) {
     exportHtml: null,
     showTree: null,
     treeDepth: 3,
+    insights: false,
+    extStats: false,
+    unusedDeps: false,
+    failOnUnused: false,
+    why: null, // {from,to}
+    inspect: null,
+    exportCsv: null,
+    initRules: null,
+    noColor: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -166,6 +176,35 @@ function parseArgs(argv) {
       const n = Number(argv[++i]);
       if (!Number.isFinite(n) || n < 1) { printMachineError("EARG", "--tree-depth requires a positive number"); process.exit(1); }
       args.treeDepth = Math.min(8, n);
+    } else if (a === "--insights" || a === "--top") {
+      args.insights = true;
+    } else if (a === "--ext-stats") {
+      args.extStats = true;
+    } else if (a === "--unused-deps") {
+      args.unusedDeps = true;
+    } else if (a === "--fail-on-unused-deps") {
+      args.unusedDeps = true;
+      args.failOnUnused = true;
+    } else if (a === "--why" || a === "--path") {
+      const from = argv[++i], to = argv[++i];
+      if (!from || !to || from.startsWith("-") || to.startsWith("-")) {
+        printMachineError("EARG", "--why requires <from> <to> module ids");
+        process.exit(1);
+      }
+      args.why = { from, to };
+    } else if (a === "--inspect" || a === "--module") {
+      const v = argv[++i];
+      if (!v || v.startsWith("-")) { printMachineError("EARG", "--inspect requires a module id"); process.exit(1); }
+      args.inspect = v;
+    } else if (a === "--export-csv") {
+      const p = argv[++i];
+      if (!p || p.startsWith("-")) { printMachineError("EARG", "--export-csv requires a file path"); process.exit(1); }
+      args.exportCsv = p;
+    } else if (a === "--init-rules") {
+      const p = argv[++i] || "reality-map.rules.json";
+      args.initRules = p;
+    } else if (a === "--no-color") {
+      args.noColor = true;
     } else if (a === "--help" || a === "-h") {
       console.log(`reality-map — visual architecture explorer (v${PKG_VERSION})
 
@@ -214,6 +253,19 @@ Options:
                      Write a self-contained HTML snapshot (graph + health + tables)
       --tree <module> Print a dependency tree for a module id (depth 1)
       --tree-depth <n> Limit --tree depth (default 3, max 8)
+      --insights, --top
+                     Print top files / hubs / packages tables to terminal
+      --ext-stats    Print file extension breakdown (files, LOC)
+      --unused-deps  List package.json deps never imported in source
+      --fail-on-unused-deps
+                     Exit 1 if any unused deps detected (implies --unused-deps)
+      --why <a> <b>  Print shortest module dependency path from <a> to <b>
+      --inspect <id> Show importers / importees for a module id (depth 1)
+      --export-csv <file>
+                     Write a CSV of all scanned files (path, ext, loc, in/out)
+      --init-rules [file]
+                     Scaffold a starter layer-rules JSON (default reality-map.rules.json)
+      --no-color     Disable ANSI colors in terminal output
   -h, --help         Show help
   -V, --version      Print version
 
