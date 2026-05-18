@@ -1,6 +1,6 @@
 {
   "name": "reality-map",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "description": "Visual architecture explorer for any JavaScript/TypeScript codebase. Run locally — zero upload.",
   "author": "Vishal Gurung <g0GobliN> (https://github.com/g0GobliN)",
   "bin": {
