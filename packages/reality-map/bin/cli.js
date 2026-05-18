@@ -53,14 +53,15 @@ async function openBrowser(url) {
   console.log(`  ${dim("scanning")}  ${args.root}`);
 
   const t0 = Date.now();
-  const graph = await scanProject(args.root);
+  const scan = await scanProject(args.root);
   const ms = Date.now() - t0;
+  const depth1 = scan.graphsByDepth?.[1] ?? { stats: { modules: 0, edges: 0, cycles: 0 } };
 
   console.log(
-    `  ${dim("indexed ")} ${bold(graph.stats.files)} files · ${bold(graph.stats.modules)} modules · ${bold(graph.stats.edges)} edges · ${graph.stats.cycles} cycle(s) ${dim(`(${ms}ms)`)}`
+    `  ${dim("indexed ")} ${bold(scan.stats.files)} files · ${bold(depth1.stats.modules)} modules · ${bold(depth1.stats.edges)} edges · ${depth1.stats.cycles} cycle(s) ${dim(`(${ms}ms)`)}`
   );
 
-  const { url } = await startServer({ port: args.port, graph, root: args.root });
+  const { url } = await startServer({ port: args.port, graph: scan, root: args.root });
   console.log("");
   console.log(`  ${bold("➜")}  Dashboard:  ${cyan(url)}`);
   console.log(`  ${dim("Ctrl+C to stop")}`);

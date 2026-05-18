@@ -61,12 +61,27 @@ function resolveRel(fromFile, spec, allFiles) {
   return null;
 }
 
-// Group files into "modules" by top-level folder under src/ (or top-level dir)
-function moduleOf(rel) {
+// Group files into "modules" by folder depth.
+// depth=1 => src/<first>, app/<first>, <top-level>
+// depth=2 => src/<first>/<second>, app/<first>/<second>, <top-level>/<next>
+// depth=3 => src/<first>/<second>/<third>, ...
+function moduleOf(rel, depth) {
   const parts = rel.split(path.sep).filter(Boolean);
-  if (parts[0] === "src" && parts.length > 1) return "src/" + parts[1];
-  if (parts[0] === "app" && parts.length > 1) return "app/" + parts[1];
-  return parts[0] || "(root)";
+  // rel is a file path; exclude the filename so modules represent folders, not files.
+  const dirs = parts.slice(0, -1);
+  const d = Math.max(1, Number(depth || 1));
+
+  if (dirs[0] === "src") {
+    const segs = dirs.slice(1, 1 + d);
+    return segs.length ? "src/" + segs.join("/") : "src";
+  }
+  if (dirs[0] === "app") {
+    const segs = dirs.slice(1, 1 + d);
+    return segs.length ? "app/" + segs.join("/") : "app";
+  }
+
+  const segs = dirs.slice(0, d);
+  return segs.length ? segs.join("/") : "(root)";
 }
 
 const TONE_BY_HINT = [
@@ -105,7 +120,8 @@ function detectCycles(adj) {
   return cycles;
 }
 
-async function scanProject(root) {
+async function scanProject(root, opts = {}) {
+  const maxDepth = Math.max(1, Math.min(5, Number(opts.maxDepth ?? 3))); // keep UI readable
   const files = await walk(root);
   const fileSet = new Set(files);
 
@@ -134,87 +150,107 @@ async function scanProject(root) {
     }
   }));
 
-  // Aggregate to modules
-  const modFiles = new Map(); // module -> Set(files)
-  for (const f of files) {
-    const rel = path.relative(root, f);
-    const mod = moduleOf(rel);
-    if (!modFiles.has(mod)) modFiles.set(mod, new Set());
-    modFiles.get(mod).add(f);
-  }
-
-  const fileToMod = new Map();
-  for (const [m, set] of modFiles) for (const f of set) fileToMod.set(f, m);
-
-  const edgeWeights = new Map(); // "a|b" -> count
-  for (const [a, b] of fileEdges) {
-    const ma = fileToMod.get(a), mb = fileToMod.get(b);
-    if (!ma || !mb || ma === mb) continue;
-    const k = ma + "|" + mb;
-    edgeWeights.set(k, (edgeWeights.get(k) || 0) + 1);
-  }
-
-  const adj = new Map();
-  for (const m of modFiles.keys()) adj.set(m, new Set());
-  for (const k of edgeWeights.keys()) {
-    const [a, b] = k.split("|");
-    adj.get(a).add(b);
-  }
-  const cycles = detectCycles(new Map([...adj].map(([k, v]) => [k, [...v]])));
-
-  // Layout: simple layered-by-fan-in
-  const fanIn = new Map();
-  for (const m of modFiles.keys()) fanIn.set(m, 0);
-  for (const k of edgeWeights.keys()) {
-    const [, b] = k.split("|");
-    fanIn.set(b, (fanIn.get(b) || 0) + 1);
-  }
-  const sortedMods = [...modFiles.keys()].sort((a, b) => (fanIn.get(a) - fanIn.get(b)) || a.localeCompare(b));
-  const cols = 4;
-  const colW = 280, rowH = 150;
-  const inCycle = new Set();
-  for (const cy of cycles) for (const n of cy) inCycle.add(n);
-
-  const nodes = sortedMods.map((m, i) => {
-    const filesInMod = modFiles.get(m).size;
-    const loc = [...modFiles.get(m)].reduce((a, f) => a + (fileLoc.get(f) || 0), 0);
-    const col = i % cols, row = Math.floor(i / cols);
-    return {
-      id: m,
-      label: m,
-      sub: `${filesInMod} files · ${loc} loc`,
-      tone: inCycle.has(m) ? "rose" : toneFor(m),
-      warn: inCycle.has(m),
-      x: 60 + col * colW,
-      y: 60 + row * rowH,
-      files: filesInMod,
-      loc,
-    };
-  });
-
-  const edges = [...edgeWeights.entries()].map(([k, w], i) => {
-    const [a, b] = k.split("|");
-    return { id: "e" + i, source: a, target: b, weight: w };
-  });
-
   const topExternal = [...externalCounts.entries()]
     .sort((a, b) => b[1] - a[1]).slice(0, 12)
     .map(([name, count]) => ({ name, count }));
+
+  function buildGraphForDepth(depth) {
+    // Aggregate to modules
+    const modFiles = new Map(); // module -> Set(files)
+    for (const f of files) {
+      const rel = path.relative(root, f);
+      const mod = moduleOf(rel, depth);
+      if (!modFiles.has(mod)) modFiles.set(mod, new Set());
+      modFiles.get(mod).add(f);
+    }
+
+    const fileToMod = new Map();
+    for (const [m, set] of modFiles) for (const f of set) fileToMod.set(f, m);
+
+    const edgeWeights = new Map(); // "a|b" -> count
+    for (const [a, b] of fileEdges) {
+      const ma = fileToMod.get(a), mb = fileToMod.get(b);
+      if (!ma || !mb || ma === mb) continue;
+      const k = ma + "|" + mb;
+      edgeWeights.set(k, (edgeWeights.get(k) || 0) + 1);
+    }
+
+    const adj = new Map();
+    for (const m of modFiles.keys()) adj.set(m, new Set());
+    for (const k of edgeWeights.keys()) {
+      const [a, b] = k.split("|");
+      if (!adj.has(a)) adj.set(a, new Set());
+      adj.get(a).add(b);
+    }
+    const cycles = detectCycles(new Map([...adj].map(([k, v]) => [k, [...v]])));
+
+    // Layout: simple layered-by-fan-in
+    const fanIn = new Map();
+    for (const m of modFiles.keys()) fanIn.set(m, 0);
+    for (const k of edgeWeights.keys()) {
+      const [, b] = k.split("|");
+      fanIn.set(b, (fanIn.get(b) || 0) + 1);
+    }
+    const sortedMods = [...modFiles.keys()].sort((a, b) => (fanIn.get(a) - fanIn.get(b)) || a.localeCompare(b));
+    const cols = 4;
+    const colW = 280, rowH = 150;
+    const inCycle = new Set();
+    for (const cy of cycles) for (const n of cy) inCycle.add(n);
+
+    const nodes = sortedMods.map((m, i) => {
+      const set = modFiles.get(m) || new Set();
+      const filesInMod = set.size;
+      const loc = [...set].reduce((a, f) => a + (fileLoc.get(f) || 0), 0);
+      const col = i % cols, row = Math.floor(i / cols);
+      return {
+        id: m,
+        label: m,
+        sub: `${filesInMod} files · ${loc} loc`,
+        tone: inCycle.has(m) ? "rose" : toneFor(m),
+        warn: inCycle.has(m),
+        x: 60 + col * colW,
+        y: 60 + row * rowH,
+        files: filesInMod,
+        loc,
+      };
+    });
+
+    const edges = [...edgeWeights.entries()].map(([k, w], i) => {
+      const [a, b] = k.split("|");
+      return { id: "e" + i, source: a, target: b, weight: w };
+    });
+
+    return {
+      root,
+      generatedAt: new Date().toISOString(),
+      stats: {
+        files: files.length,
+        modules: nodes.length,
+        edges: edges.length,
+        cycles: cycles.length,
+        loc: totalLoc,
+      },
+      nodes,
+      edges,
+      cycles,
+      topExternal,
+    };
+  }
+
+  const graphsByDepth = {};
+  for (let depth = 1; depth <= maxDepth; depth++) {
+    graphsByDepth[depth] = buildGraphForDepth(depth);
+  }
 
   return {
     root,
     generatedAt: new Date().toISOString(),
     stats: {
       files: files.length,
-      modules: nodes.length,
-      edges: edges.length,
-      cycles: cycles.length,
       loc: totalLoc,
     },
-    nodes,
-    edges,
-    cycles,
-    topExternal,
+    graphsByDepth,
+    maxDepth,
   };
 }
 
