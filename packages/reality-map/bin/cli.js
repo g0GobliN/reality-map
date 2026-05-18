@@ -681,6 +681,99 @@ function buildDependencyTree(scan, modId, maxDepth) {
     if (!args.quiet) log(`  ${dim("export-mermaid")}  wrote ${cyan(abs)} (depth ${graphDepth})`);
   }
 
+  // ---- Insights / Top -----------------------------------------------------
+  if (args.insights) {
+    const ins = scan.insights || {};
+    const fmtRow = (a, b) => `    ${dim("·")} ${a.padEnd(60)} ${dim(String(b))}`;
+    log("");
+    log(`  ${bold("largest files")}`);
+    for (const f of (ins.topFilesByLoc || []).slice(0, 10)) log(fmtRow(f.path, f.loc + " loc"));
+    log("");
+    log(`  ${bold("most-imported (internal)")}`);
+    for (const f of (ins.topImported || []).slice(0, 10)) log(fmtRow(f.path, "× " + f.count));
+    log("");
+    log(`  ${bold("coupling hubs")}`);
+    for (const h of (ins.hubs || []).slice(0, 10)) log(fmtRow(h.path, `in ${h.in} / out ${h.out}`));
+    log("");
+    log(`  ${bold("top external packages")}`);
+    for (const p of (ins.externalPackages || []).slice(0, 12)) log(fmtRow(p.name, "× " + p.count));
+    log("");
+  }
+
+  // ---- Extension breakdown ------------------------------------------------
+  if (args.extStats) {
+    log("");
+    log(`  ${bold("extension breakdown")}`);
+    const rows = extStats(scan);
+    const total = rows.reduce((a, r) => a + r.loc, 0) || 1;
+    for (const r of rows) {
+      const pct = ((r.loc / total) * 100).toFixed(1);
+      log(`    ${dim("·")} ${r.ext.padEnd(8)} ${String(r.files).padStart(5)} files   ${String(r.loc).padStart(7)} loc   ${dim(pct + "%")}`);
+    }
+    log("");
+  }
+
+  // ---- Unused declared deps ----------------------------------------------
+  if (args.unusedDeps) {
+    const u = unusedDeps(scan, args.root);
+    if (!u) {
+      log(`  ${dim("unused-deps")} no package.json at project root`);
+    } else {
+      log("");
+      log(`  ${bold("unused dependencies")} ${dim(`(${u.unused.length} of ${u.declared} declared, ${u.used} imported)`)}`);
+      if (!u.unused.length) log(`    ${green("✓")} ${dim("all declared deps appear in source")}`);
+      else for (const n of u.unused) log(`    ${dim("·")} ${yellow(n)}`);
+      log("");
+      if (args.failOnUnused && u.unused.length) {
+        printMachineError("EUNUSED", `${u.unused.length} unused dependency(s) declared in package.json`, { unused: u.unused });
+        process.exit(1);
+      }
+    }
+  }
+
+  // ---- Why / shortest path ------------------------------------------------
+  if (args.why) {
+    const r = shortestPath(scan, args.why.from, args.why.to);
+    log("");
+    log(`  ${bold("path")}  ${args.why.from} ${dim("→")} ${args.why.to}`);
+    if (!r || r.error) {
+      log(`    ${red("✗")} ${(r && r.error) || "no graph"}`);
+    } else if (!r.path) {
+      log(`    ${dim("no path found")}`);
+    } else {
+      log("    " + r.path.join(`  ${dim("→")}  `));
+    }
+    log("");
+  }
+
+  // ---- Inspect module -----------------------------------------------------
+  if (args.inspect) {
+    const r = inspectModule(scan, args.inspect);
+    log("");
+    if (!r || r.error) {
+      log(`  ${red("✗")} ${(r && r.error) || "no graph"}`);
+    } else {
+      log(`  ${bold("module")}  ${cyan(r.node.id)}`);
+      log(`    ${dim("files")}     ${r.node.files} · ${r.node.loc} loc · fan-in ${r.node.fanIn} · fan-out ${r.node.fanOut}`);
+      log(`    ${dim("importers")}`);
+      if (!r.importers.length) log(`      ${dim("(none)")}`);
+      for (const im of r.importers.slice(0, 20)) log(`      ${dim("←")} ${im.from} ${dim(`(w=${im.weight})`)}`);
+      log(`    ${dim("importees")}`);
+      if (!r.importees.length) log(`      ${dim("(none)")}`);
+      for (const im of r.importees.slice(0, 20)) log(`      ${dim("→")} ${im.to} ${dim(`(w=${im.weight})`)}`);
+      log(`    ${dim("sample paths")}`);
+      for (const p of (r.node.pathsPreview || []).slice(0, 8)) log(`      ${dim("·")} ${p}`);
+    }
+    log("");
+  }
+
+  // ---- Files CSV ----------------------------------------------------------
+  if (args.exportCsv) {
+    const csv = filesCsv(scan);
+    const abs = await writeTextFile(args.exportCsv, csv);
+    if (!args.quiet) log(`  ${dim("export-csv")} wrote ${cyan(abs)} (${(scan.insights?.filesIndex || []).length} rows)`);
+  }
+
   if (args.noServe) {
     if (args.exportPath) {
       const abs = await writeScanJsonFile(args.exportPath, scan);
