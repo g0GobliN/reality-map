@@ -18,13 +18,38 @@ Most codebases grow faster than anyone can understand them. `reality-map` gives 
 
 ## Features
 
-### 🗺 Interactive Dependency Map
+### 🗺 Interactive Architecture Graph
+
+A live, zoomable graph of your entire project — modules, services, databases, and their connections — rendered in the browser with full interaction.
+
+**Phase 1 · Interaction**
+
+- **Edge focus mode** — hover any node to highlight its connected edges; unrelated edges drop to near-invisible
+- **Path highlighting** — click a node to lock focus; its neighbours glow, everything else fades to 20% opacity; click again or click the canvas to deselect
+- **Edge filtering** — toggle edge groups by colour/type (`web`, `api`, `infra`, `cycle`) to isolate signal from noise; at least one group always stays active
+
+**Phase 2 · Clustering**
+
+- **Domain clusters** — nodes are grouped into logical layers (`web layer`, `api layer`, `infra layer`), each shown with a translucent group background
+- **Collapse & expand** — click a cluster toggle pill or the cluster node itself to collapse the entire group into a single summary card; inter-cluster edges auto-reroute and deduplicate
+- **Cluster metrics** — each collapsed cluster card shows aggregated file count and warning count; the top HUD shows how many clusters are currently collapsed
+
+**Phase 3 · Layouts & Abstraction**
+
+- **Multiple layouts** — switch between three named arrangements:
+  - `layered` — left-to-right tier layout (default, shows group backgrounds)
+  - `radial` — nodes arranged evenly around a circle
+  - `force` — organic scatter with cluster proximity preserved
+- **Smooth transitions** — switching layouts or toggling clusters triggers an animated `fitView` so context is never lost
+- **Zoom-based abstraction** — zoom out past ~50% and all clusters auto-collapse into summary nodes; the HUD switches to "abstracted · zoom in to expand"; zooming back in restores the full graph
+
+**Core graph features**
 
 - Module-level graph with configurable depth (1–5)
 - Click any module to drill in — see sub-modules, then files, then symbols
 - Drag nodes to rearrange, pan and zoom freely
 - Animated edges show import direction and weight
-- Cycle detection — circular dependencies highlighted in red
+- Cycle detection — circular dependencies highlighted in rose
 
 ### 🔍 Deep File Exploration
 
