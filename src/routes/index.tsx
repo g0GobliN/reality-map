@@ -107,8 +107,8 @@ function Hero() {
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-14 px-6 pt-20 pb-28 lg:grid-cols-12 lg:gap-10 lg:pt-28">
         <motion.div initial="hidden" animate="show" variants={fade} className="lg:col-span-5">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border glass px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-            <Sparkles className="h-3 w-3 text-cyan" />
-            v{__APP_VERSION__} · now with interactive architecture graphs
+            <Sparkles className="h-3 w-3 text-cyan" />v{__APP_VERSION__} · now with interactive
+            architecture graphs
           </div>
           <h1 className="text-balance text-5xl font-semibold leading-[1.05] tracking-tight md:text-6xl">
             Understand your <br />
@@ -285,17 +285,53 @@ function ProblemSection() {
 function VisualizationSection() {
   const graphFeatures = [
     // Phase 1
-    { Icon: Filter,      t: "Edge filtering",          d: "Toggle edge groups by type — web, api, infra, cycle — to isolate signal from noise." },
-    { Icon: MousePointer2, t: "Focus mode",            d: "Hover any node to highlight its direct connections; click to lock the selection." },
-    { Icon: Network,     t: "Path highlighting",        d: "Selected-node subgraph lights up; unrelated nodes fade to 20% opacity." },
+    {
+      Icon: Filter,
+      t: "Edge filtering",
+      d: "Toggle edge groups by type — web, api, infra, cycle — to isolate signal from noise.",
+    },
+    {
+      Icon: MousePointer2,
+      t: "Focus mode",
+      d: "Hover any node to highlight its direct connections; click to lock the selection.",
+    },
+    {
+      Icon: Network,
+      t: "Path highlighting",
+      d: "Selected-node subgraph lights up; unrelated nodes fade to 20% opacity.",
+    },
     // Phase 2
-    { Icon: Layers,      t: "Domain clustering",        d: "Group nodes into web / api / infra layers with aggregated file counts and warning badges." },
-    { Icon: Boxes,       t: "Collapse & expand",        d: "Collapse any cluster into a single summary node; edges auto-reroute and deduplicate." },
-    { Icon: MapIcon,     t: "Cluster metrics",          d: "Each collapsed cluster shows total file count and warning count at a glance." },
+    {
+      Icon: Layers,
+      t: "Domain clustering",
+      d: "Group nodes into web / api / infra layers with aggregated file counts and warning badges.",
+    },
+    {
+      Icon: Boxes,
+      t: "Collapse & expand",
+      d: "Collapse any cluster into a single summary node; edges auto-reroute and deduplicate.",
+    },
+    {
+      Icon: MapIcon,
+      t: "Cluster metrics",
+      d: "Each collapsed cluster shows total file count and warning count at a glance.",
+    },
     // Phase 3
-    { Icon: LayoutGrid,  t: "Multiple layouts",         d: "Switch between layered (tier), radial (circle), and force (organic) arrangements." },
-    { Icon: ZoomIn,      t: "Zoom-based abstraction",   d: "Zoom out past 50% and clusters auto-collapse — zoom back in to restore full detail." },
-    { Icon: Compass,     t: "Smooth transitions",       d: "Layout switches animate via fitView so context is never lost mid-change." },
+    {
+      Icon: LayoutGrid,
+      t: "Multiple layouts",
+      d: "Switch between layered (tier), radial (circle), and force (organic) arrangements.",
+    },
+    {
+      Icon: ZoomIn,
+      t: "Zoom-based abstraction",
+      d: "Zoom out past 50% and clusters auto-collapse — zoom back in to restore full detail.",
+    },
+    {
+      Icon: Compass,
+      t: "Smooth transitions",
+      d: "Layout switches animate via fitView so context is never lost mid-change.",
+    },
   ] as const;
 
   return (
@@ -318,30 +354,38 @@ function VisualizationSection() {
         >
           <ArchitectureGraph compact />
           <p className="mt-2 font-mono text-[11px] text-muted-foreground">
-            Try the controls: cluster toggles (top-centre) · layout switcher (bottom-centre) · edge filters (bottom-right)
+            Try the controls: cluster toggles (top-centre) · layout switcher (bottom-centre) · edge
+            filters (bottom-right)
           </p>
         </motion.div>
 
         <div className="col-span-12 grid gap-2.5 lg:col-span-4">
           {/* Phase badges */}
-          {(["Phase 1 · Interaction", "Phase 2 · Clustering", "Phase 3 · Layouts"] as const).map((phase, pi) => (
-            <div key={phase}>
-              <div className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">{phase}</div>
-              {graphFeatures.slice(pi * 3, pi * 3 + 3).map(({ Icon, t, d }) => (
-                <div key={t} className="glass mb-1.5 rounded-xl p-3 transition hover:bg-surface-2">
-                  <div className="flex items-center gap-2.5">
-                    <span className="grid h-8 w-8 flex-none place-items-center rounded-lg border border-border bg-surface-2">
-                      <Icon className="h-3.5 w-3.5 text-cyan" />
-                    </span>
-                    <div>
-                      <div className="text-sm font-medium">{t}</div>
-                      <div className="text-[11px] text-muted-foreground leading-snug">{d}</div>
+          {(["Phase 1 · Interaction", "Phase 2 · Clustering", "Phase 3 · Layouts"] as const).map(
+            (phase, pi) => (
+              <div key={phase}>
+                <div className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
+                  {phase}
+                </div>
+                {graphFeatures.slice(pi * 3, pi * 3 + 3).map(({ Icon, t, d }) => (
+                  <div
+                    key={t}
+                    className="glass mb-1.5 rounded-xl p-3 transition hover:bg-surface-2"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="grid h-8 w-8 flex-none place-items-center rounded-lg border border-border bg-surface-2">
+                        <Icon className="h-3.5 w-3.5 text-cyan" />
+                      </span>
+                      <div>
+                        <div className="text-sm font-medium">{t}</div>
+                        <div className="text-[11px] text-muted-foreground leading-snug">{d}</div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ))}
+                ))}
+              </div>
+            ),
+          )}
         </div>
       </div>
     </Section>

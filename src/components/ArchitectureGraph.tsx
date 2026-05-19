@@ -62,37 +62,37 @@ type GData = { tone: Tone; width: number; height: number };
 
 const NODE_POSITIONS: Record<Layout, Record<string, { x: number; y: number }>> = {
   layered: {
-    web:    { x: 40,  y: 40  },
-    ui:     { x: 40,  y: 180 },
-    legacy: { x: 40,  y: 360 },
-    api:    { x: 360, y: 40  },
-    auth:   { x: 360, y: 200 },
-    core:   { x: 360, y: 360 },
-    db:     { x: 700, y: 110 },
+    web: { x: 40, y: 40 },
+    ui: { x: 40, y: 180 },
+    legacy: { x: 40, y: 360 },
+    api: { x: 360, y: 40 },
+    auth: { x: 360, y: 200 },
+    core: { x: 360, y: 360 },
+    db: { x: 700, y: 110 },
     worker: { x: 700, y: 280 },
     docker: { x: 700, y: 430 },
   },
   radial: {
     // cx=470 cy=240 r=210, 9 nodes, 40° apart starting from top
-    web:    { x: 470, y:  30 },  // 270°
-    api:    { x: 601, y:  70 },  // 310°
-    auth:   { x: 673, y: 203 },  // 350°
-    db:     { x: 648, y: 345 },  // 30°
-    worker: { x: 537, y: 437 },  // 70°
-    docker: { x: 390, y: 437 },  // 110°
-    core:   { x: 280, y: 345 },  // 150°
-    ui:     { x: 262, y: 203 },  // 190°
-    legacy: { x: 333, y:  70 },  // 230°
+    web: { x: 470, y: 30 }, // 270°
+    api: { x: 601, y: 70 }, // 310°
+    auth: { x: 673, y: 203 }, // 350°
+    db: { x: 648, y: 345 }, // 30°
+    worker: { x: 537, y: 437 }, // 70°
+    docker: { x: 390, y: 437 }, // 110°
+    core: { x: 280, y: 345 }, // 150°
+    ui: { x: 262, y: 203 }, // 190°
+    legacy: { x: 333, y: 70 }, // 230°
   },
   force: {
     // organic scatter with cluster proximity
-    web:    { x:  60, y:  80 },
-    ui:     { x:  90, y: 290 },
+    web: { x: 60, y: 80 },
+    ui: { x: 90, y: 290 },
     legacy: { x: 180, y: 450 },
-    api:    { x: 390, y:  50 },
-    auth:   { x: 430, y: 260 },
-    core:   { x: 250, y: 370 },
-    db:     { x: 670, y: 130 },
+    api: { x: 390, y: 50 },
+    auth: { x: 430, y: 260 },
+    core: { x: 250, y: 370 },
+    db: { x: 670, y: 130 },
     worker: { x: 710, y: 330 },
     docker: { x: 540, y: 470 },
   },
@@ -117,9 +117,9 @@ const CLUSTERS: ClusterDef[] = [
     tone: "cyan",
     members: ["web", "ui", "legacy"],
     collapsedPos: {
-      layered: { x: 40,  y: 190 },
-      radial:  { x: 280, y: 180 },
-      force:   { x: 100, y: 260 },
+      layered: { x: 40, y: 190 },
+      radial: { x: 280, y: 180 },
+      force: { x: 100, y: 260 },
     },
     groupPos: { x: 16, y: 16 },
     groupSize: { w: 248, h: 420 },
@@ -131,8 +131,8 @@ const CLUSTERS: ClusterDef[] = [
     members: ["api", "auth", "core"],
     collapsedPos: {
       layered: { x: 360, y: 200 },
-      radial:  { x: 430, y: 200 },
-      force:   { x: 360, y: 240 },
+      radial: { x: 430, y: 200 },
+      force: { x: 360, y: 240 },
     },
     groupPos: { x: 336, y: 16 },
     groupSize: { w: 248, h: 420 },
@@ -144,8 +144,8 @@ const CLUSTERS: ClusterDef[] = [
     members: ["db", "worker", "docker"],
     collapsedPos: {
       layered: { x: 700, y: 270 },
-      radial:  { x: 600, y: 310 },
-      force:   { x: 660, y: 290 },
+      radial: { x: 600, y: 310 },
+      force: { x: 660, y: 290 },
     },
     groupPos: { x: 676, y: 86 },
     groupSize: { w: 248, h: 420 },
@@ -161,21 +161,28 @@ const MEMBER_TO_CLUSTER = new Map<string, ClusterDef>(
 const EDGE_TONES: Tone[] = ["cyan", "violet", "amber", "rose"];
 
 const toneLabel: Record<Tone, string> = {
-  cyan: "web", violet: "api", amber: "infra", rose: "cycle", emerald: "db",
+  cyan: "web",
+  violet: "api",
+  amber: "infra",
+  rose: "cycle",
+  emerald: "db",
 };
 
 const toneMap: Record<Tone, string> = {
-  cyan:    "from-cyan/30 to-cyan/5 text-cyan border-cyan/40",
-  violet:  "from-violet/30 to-violet/5 text-violet border-violet/40",
-  amber:   "from-amber/30 to-amber/5 text-amber border-amber/40",
-  rose:    "from-rose/30 to-rose/5 text-rose border-rose/40",
+  cyan: "from-cyan/30 to-cyan/5 text-cyan border-cyan/40",
+  violet: "from-violet/30 to-violet/5 text-violet border-violet/40",
+  amber: "from-amber/30 to-amber/5 text-amber border-amber/40",
+  rose: "from-rose/30 to-rose/5 text-rose border-rose/40",
   emerald: "from-emerald/30 to-emerald/5 text-emerald border-emerald/40",
 };
 
-const LAYOUT_META: Record<Layout, { label: string; Icon: React.ComponentType<{ className?: string }> }> = {
+const LAYOUT_META: Record<
+  Layout,
+  { label: string; Icon: React.ComponentType<{ className?: string }> }
+> = {
   layered: { label: "layered", Icon: LayoutGrid },
-  radial:  { label: "radial",  Icon: Circle    },
-  force:   { label: "force",   Icon: Shuffle   },
+  radial: { label: "radial", Icon: Circle },
+  force: { label: "force", Icon: Shuffle },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -217,8 +224,16 @@ function ModuleNode({ data }: NodeProps<NData>) {
       }}
     >
       <div className="rounded-[11px] glass-strong p-3">
-        <Handle type="target" position={Position.Left}  className="!h-2 !w-2 !border-0 !bg-foreground/40" />
-        <Handle type="source" position={Position.Right} className="!h-2 !w-2 !border-0 !bg-foreground/40" />
+        <Handle
+          type="target"
+          position={Position.Left}
+          className="!h-2 !w-2 !border-0 !bg-foreground/40"
+        />
+        <Handle
+          type="source"
+          position={Position.Right}
+          className="!h-2 !w-2 !border-0 !bg-foreground/40"
+        />
         <div className="flex items-center gap-2">
           <span className="grid h-8 w-8 place-items-center rounded-lg border border-border/60 bg-background/60">
             <Icon className="h-4 w-4" />
@@ -259,8 +274,16 @@ function ClusterNode({ data }: NodeProps<CData>) {
       }}
     >
       <div className="rounded-[11px] glass-strong p-3">
-        <Handle type="target" position={Position.Left}  className="!h-2 !w-2 !border-0 !bg-foreground/40" />
-        <Handle type="source" position={Position.Right} className="!h-2 !w-2 !border-0 !bg-foreground/40" />
+        <Handle
+          type="target"
+          position={Position.Left}
+          className="!h-2 !w-2 !border-0 !bg-foreground/40"
+        />
+        <Handle
+          type="source"
+          position={Position.Right}
+          className="!h-2 !w-2 !border-0 !bg-foreground/40"
+        />
         <div className="flex items-center gap-2">
           <span className="grid h-8 w-8 place-items-center rounded-lg border border-border/60 bg-background/60">
             <Layers className="h-4 w-4" />
@@ -271,23 +294,37 @@ function ClusterNode({ data }: NodeProps<CData>) {
               {data.nodeCount} modules
             </div>
           </div>
-          <span className={`grid h-6 w-6 place-items-center rounded-md border border-${tone}/40 bg-${tone}/15 text-${tone}`}>
+          <span
+            className={`grid h-6 w-6 place-items-center rounded-md border border-${tone}/40 bg-${tone}/15 text-${tone}`}
+          >
             <ChevronRight className="h-3.5 w-3.5" />
           </span>
         </div>
         <div className="mt-2.5 grid grid-cols-2 gap-1.5">
           <div className="rounded-md border border-border/40 bg-background/40 px-2 py-1 text-center">
-            <div className="font-mono text-[13px] font-semibold text-foreground">{data.fileCount}</div>
-            <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">files</div>
+            <div className="font-mono text-[13px] font-semibold text-foreground">
+              {data.fileCount}
+            </div>
+            <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+              files
+            </div>
           </div>
-          <div className={`rounded-md border px-2 py-1 text-center ${data.warnCount > 0 ? "border-rose/40 bg-rose/10" : "border-border/40 bg-background/40"}`}>
-            <div className={`font-mono text-[13px] font-semibold ${data.warnCount > 0 ? "text-rose" : "text-muted-foreground"}`}>
+          <div
+            className={`rounded-md border px-2 py-1 text-center ${data.warnCount > 0 ? "border-rose/40 bg-rose/10" : "border-border/40 bg-background/40"}`}
+          >
+            <div
+              className={`font-mono text-[13px] font-semibold ${data.warnCount > 0 ? "text-rose" : "text-muted-foreground"}`}
+            >
               {data.warnCount}
             </div>
-            <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">warn</div>
+            <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+              warn
+            </div>
           </div>
         </div>
-        <div className="mt-2 font-mono text-[9px] text-center text-muted-foreground/60">click to expand</div>
+        <div className="mt-2 font-mono text-[9px] text-center text-muted-foreground/60">
+          click to expand
+        </div>
       </div>
     </div>
   );
@@ -339,7 +376,9 @@ function buildDisplayGraph(
   const focusId = selectedNodeId ?? hoveredNodeId;
   const connectedNodeIds = focusId ? getConnectedNodeIds(focusId, routedEdges) : null;
   const connectedEdgeKeys = focusId
-    ? new Set(routedEdges.filter((e) => e.source === focusId || e.target === focusId).map((e) => e.id))
+    ? new Set(
+        routedEdges.filter((e) => e.source === focusId || e.target === focusId).map((e) => e.id),
+      )
     : null;
 
   const displayEdges = routedEdges.map((e) => {
@@ -348,8 +387,8 @@ function buildDisplayGraph(
       ...e,
       style: {
         ...e.style,
-        opacity:     connectedEdgeKeys && !connected ? 0.08 : 1,
-        strokeWidth: connectedEdgeKeys &&  connected ? 2.2  : 1.4,
+        opacity: connectedEdgeKeys && !connected ? 0.08 : 1,
+        strokeWidth: connectedEdgeKeys && connected ? 2.2 : 1.4,
       },
     };
   });
@@ -359,7 +398,7 @@ function buildDisplayGraph(
 
   for (const cluster of CLUSTERS) {
     if (effectiveCollapsed.has(cluster.id)) {
-      const members  = baseNodes.filter((n) => cluster.members.includes(n.id));
+      const members = baseNodes.filter((n) => cluster.members.includes(n.id));
       const fileCount = members.reduce((s, n) => s + parseFileCount(n.data.badge), 0);
       const warnCount = members.filter((n) => n.data.warn).length;
       const isConnected = connectedNodeIds ? connectedNodeIds.has(cluster.id) : true;
@@ -374,8 +413,8 @@ function buildDisplayGraph(
           nodeCount: cluster.members.length,
           fileCount,
           warnCount,
-          dimmed:      connectedNodeIds ? !isConnected : false,
-          highlighted: connectedNodeIds ?  isConnected : false,
+          dimmed: connectedNodeIds ? !isConnected : false,
+          highlighted: connectedNodeIds ? isConnected : false,
         } satisfies CData,
       });
     } else {
@@ -388,7 +427,11 @@ function buildDisplayGraph(
           selectable: false,
           draggable: false,
           zIndex: -1,
-          data: { tone: cluster.tone, width: cluster.groupSize.w, height: cluster.groupSize.h } satisfies GData,
+          data: {
+            tone: cluster.tone,
+            width: cluster.groupSize.w,
+            height: cluster.groupSize.h,
+          } satisfies GData,
         });
       }
       for (const n of baseNodes.filter((bn) => cluster.members.includes(bn.id))) {
@@ -398,8 +441,8 @@ function buildDisplayGraph(
           position: positions[n.id] ?? n.position,
           data: {
             ...n.data,
-            dimmed:      connectedNodeIds ? !isConnected : false,
-            highlighted: connectedNodeIds ?  isConnected : false,
+            dimmed: connectedNodeIds ? !isConnected : false,
+            highlighted: connectedNodeIds ? isConnected : false,
           },
         });
       }
@@ -412,54 +455,188 @@ function buildDisplayGraph(
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function ArchitectureGraph({ compact = false }: { compact?: boolean }) {
-  const [layout, setLayout]                   = useState<Layout>("layered");
+  const [layout, setLayout] = useState<Layout>("layered");
   const [collapsedClusters, setCollapsedClusters] = useState<Set<string>>(new Set());
-  const [selectedNodeId, setSelectedNodeId]   = useState<string | null>(null);
-  const [hoveredNodeId, setHoveredNodeId]     = useState<string | null>(null);
-  const [activeFilters, setActiveFilters]     = useState<Set<Tone>>(new Set(EDGE_TONES));
-  const [zoomAbstracted, setZoomAbstracted]   = useState(false);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [activeFilters, setActiveFilters] = useState<Set<Tone>>(new Set(EDGE_TONES));
+  const [zoomAbstracted, setZoomAbstracted] = useState(false);
   const rfRef = useRef<ReactFlowInstance | null>(null);
   const prevZoomAbstracted = useRef(false);
 
   const { baseNodes, baseEdges } = useMemo(() => {
-    const e = (id: string, source: string, target: string, tone: Tone = "cyan", animated = true): Edge => ({
-      id, source, target, animated,
-      style: { stroke: `var(--${tone})`, strokeWidth: 1.4, filter: `drop-shadow(0 0 6px var(--${tone}))` },
+    const e = (
+      id: string,
+      source: string,
+      target: string,
+      tone: Tone = "cyan",
+      animated = true,
+    ): Edge => ({
+      id,
+      source,
+      target,
+      animated,
+      style: {
+        stroke: `var(--${tone})`,
+        strokeWidth: 1.4,
+        filter: `drop-shadow(0 0 6px var(--${tone}))`,
+      },
       type: "smoothstep",
     });
 
     const baseNodes: Node<NData>[] = [
-      { id: "web",    type: "mod", position: NODE_POSITIONS.layered.web,    data: { label: "web/",         sub: "Next.js · 14 routes", Icon: Globe,         tone: "cyan",    badge: "42 files"       } },
-      { id: "ui",     type: "mod", position: NODE_POSITIONS.layered.ui,     data: { label: "ui/components", sub: "design system",      Icon: Boxes,         tone: "cyan",    badge: "118 files"      } },
-      { id: "legacy", type: "mod", position: NODE_POSITIONS.layered.legacy, data: { label: "legacy/v1",    sub: "dead code",           Icon: FlameKindling, tone: "rose",    badge: "0 imports",     warn: true } },
-      { id: "api",    type: "mod", position: NODE_POSITIONS.layered.api,    data: { label: "api/",          sub: "edge functions",      Icon: Server,        tone: "violet",  badge: "23 routes"      } },
-      { id: "auth",   type: "mod", position: NODE_POSITIONS.layered.auth,   data: { label: "auth/",         sub: "session · oauth",    Icon: ShieldCheck,   tone: "violet",  badge: "JWT · OAuth"    } },
-      { id: "core",   type: "mod", position: NODE_POSITIONS.layered.core,   data: { label: "core/utils",    sub: "circular dep",       Icon: GitBranch,     tone: "rose",    badge: "cycle: 4 nodes", warn: true } },
-      { id: "db",     type: "mod", position: NODE_POSITIONS.layered.db,     data: { label: "db/postgres",   sub: "12 tables",          Icon: Database,      tone: "emerald", badge: "12 tables"      } },
-      { id: "worker", type: "mod", position: NODE_POSITIONS.layered.worker, data: { label: "workers/",      sub: "queue · cron",       Icon: Cpu,           tone: "amber",   badge: "hot: 38%",      warn: true } },
-      { id: "docker", type: "mod", position: NODE_POSITIONS.layered.docker, data: { label: "infra/docker",  sub: "5 services",         Icon: Container,     tone: "cyan",    badge: "5 services"     } },
+      {
+        id: "web",
+        type: "mod",
+        position: NODE_POSITIONS.layered.web,
+        data: {
+          label: "web/",
+          sub: "Next.js · 14 routes",
+          Icon: Globe,
+          tone: "cyan",
+          badge: "42 files",
+        },
+      },
+      {
+        id: "ui",
+        type: "mod",
+        position: NODE_POSITIONS.layered.ui,
+        data: {
+          label: "ui/components",
+          sub: "design system",
+          Icon: Boxes,
+          tone: "cyan",
+          badge: "118 files",
+        },
+      },
+      {
+        id: "legacy",
+        type: "mod",
+        position: NODE_POSITIONS.layered.legacy,
+        data: {
+          label: "legacy/v1",
+          sub: "dead code",
+          Icon: FlameKindling,
+          tone: "rose",
+          badge: "0 imports",
+          warn: true,
+        },
+      },
+      {
+        id: "api",
+        type: "mod",
+        position: NODE_POSITIONS.layered.api,
+        data: {
+          label: "api/",
+          sub: "edge functions",
+          Icon: Server,
+          tone: "violet",
+          badge: "23 routes",
+        },
+      },
+      {
+        id: "auth",
+        type: "mod",
+        position: NODE_POSITIONS.layered.auth,
+        data: {
+          label: "auth/",
+          sub: "session · oauth",
+          Icon: ShieldCheck,
+          tone: "violet",
+          badge: "JWT · OAuth",
+        },
+      },
+      {
+        id: "core",
+        type: "mod",
+        position: NODE_POSITIONS.layered.core,
+        data: {
+          label: "core/utils",
+          sub: "circular dep",
+          Icon: GitBranch,
+          tone: "rose",
+          badge: "cycle: 4 nodes",
+          warn: true,
+        },
+      },
+      {
+        id: "db",
+        type: "mod",
+        position: NODE_POSITIONS.layered.db,
+        data: {
+          label: "db/postgres",
+          sub: "12 tables",
+          Icon: Database,
+          tone: "emerald",
+          badge: "12 tables",
+        },
+      },
+      {
+        id: "worker",
+        type: "mod",
+        position: NODE_POSITIONS.layered.worker,
+        data: {
+          label: "workers/",
+          sub: "queue · cron",
+          Icon: Cpu,
+          tone: "amber",
+          badge: "hot: 38%",
+          warn: true,
+        },
+      },
+      {
+        id: "docker",
+        type: "mod",
+        position: NODE_POSITIONS.layered.docker,
+        data: {
+          label: "infra/docker",
+          sub: "5 services",
+          Icon: Container,
+          tone: "cyan",
+          badge: "5 services",
+        },
+      },
     ];
 
     const baseEdges: Edge[] = [
-      e("e1",  "web",    "api",    "cyan"),
-      e("e2",  "web",    "ui",     "cyan",   false),
-      e("e3",  "api",    "auth",   "violet"),
-      e("e4",  "api",    "db",     "violet"),
-      e("e5",  "auth",   "db",     "violet"),
-      e("e6",  "api",    "worker", "amber"),
-      e("e7",  "worker", "db",     "amber"),
-      e("e8",  "docker", "worker", "cyan",   false),
-      e("e9",  "docker", "db",     "cyan",   false),
-      e("e10", "core",   "api",    "rose"),
-      e("e11", "auth",   "core",   "rose"),
-      e("e12", "ui",     "core",   "rose"),
+      e("e1", "web", "api", "cyan"),
+      e("e2", "web", "ui", "cyan", false),
+      e("e3", "api", "auth", "violet"),
+      e("e4", "api", "db", "violet"),
+      e("e5", "auth", "db", "violet"),
+      e("e6", "api", "worker", "amber"),
+      e("e7", "worker", "db", "amber"),
+      e("e8", "docker", "worker", "cyan", false),
+      e("e9", "docker", "db", "cyan", false),
+      e("e10", "core", "api", "rose"),
+      e("e11", "auth", "core", "rose"),
+      e("e12", "ui", "core", "rose"),
     ];
     return { baseNodes, baseEdges };
   }, []);
 
   const { displayNodes, displayEdges } = useMemo(
-    () => buildDisplayGraph(baseNodes, baseEdges, collapsedClusters, selectedNodeId, hoveredNodeId, activeFilters, layout, zoomAbstracted),
-    [baseNodes, baseEdges, collapsedClusters, selectedNodeId, hoveredNodeId, activeFilters, layout, zoomAbstracted],
+    () =>
+      buildDisplayGraph(
+        baseNodes,
+        baseEdges,
+        collapsedClusters,
+        selectedNodeId,
+        hoveredNodeId,
+        activeFilters,
+        layout,
+        zoomAbstracted,
+      ),
+    [
+      baseNodes,
+      baseEdges,
+      collapsedClusters,
+      selectedNodeId,
+      hoveredNodeId,
+      activeFilters,
+      layout,
+      zoomAbstracted,
+    ],
   );
 
   // Smooth fitView after layout/collapse change
@@ -481,7 +658,8 @@ export function ArchitectureGraph({ compact = false }: { compact?: boolean }) {
   const toggleCluster = useCallback((clusterId: string) => {
     setCollapsedClusters((prev) => {
       const next = new Set(prev);
-      if (next.has(clusterId)) next.delete(clusterId); else next.add(clusterId);
+      if (next.has(clusterId)) next.delete(clusterId);
+      else next.add(clusterId);
       return next;
     });
     setSelectedNodeId(null);
@@ -492,10 +670,13 @@ export function ArchitectureGraph({ compact = false }: { compact?: boolean }) {
     setSelectedNodeId(null);
   }, []);
 
-  const onNodeClick = useCallback<NodeMouseHandler>((_, node) => {
-    if (node.id.startsWith("c-")) toggleCluster(node.id);
-    else setSelectedNodeId((prev) => (prev === node.id ? null : node.id));
-  }, [toggleCluster]);
+  const onNodeClick = useCallback<NodeMouseHandler>(
+    (_, node) => {
+      if (node.id.startsWith("c-")) toggleCluster(node.id);
+      else setSelectedNodeId((prev) => (prev === node.id ? null : node.id));
+    },
+    [toggleCluster],
+  );
 
   const onNodeMouseEnter = useCallback<NodeMouseHandler>((_, node) => {
     if (!node.id.startsWith("c-") && !node.id.startsWith("bg-")) setHoveredNodeId(node.id);
@@ -506,7 +687,9 @@ export function ArchitectureGraph({ compact = false }: { compact?: boolean }) {
   const toggleFilter = (tone: Tone) => {
     setActiveFilters((prev) => {
       const next = new Set(prev);
-      if (next.has(tone)) { if (next.size > 1) next.delete(tone); } else next.add(tone);
+      if (next.has(tone)) {
+        if (next.size > 1) next.delete(tone);
+      } else next.add(tone);
       return next;
     });
   };
@@ -519,7 +702,9 @@ export function ArchitectureGraph({ compact = false }: { compact?: boolean }) {
       : "live · 9 modules · 12 edges";
 
   return (
-    <div className={`relative w-full ${compact ? "h-[420px]" : "h-[560px]"} overflow-hidden rounded-2xl glass ring-aurora`}>
+    <div
+      className={`relative w-full ${compact ? "h-[420px]" : "h-[560px]"} overflow-hidden rounded-2xl glass ring-aurora`}
+    >
       {/* ambient glows */}
       <div className="pointer-events-none absolute -left-16 top-40 h-64 w-64 rounded-full bg-rose/20 blur-3xl" />
       <div className="pointer-events-none absolute right-10 top-10 h-56 w-56 rounded-full bg-violet/20 blur-3xl" />
@@ -537,7 +722,9 @@ export function ArchitectureGraph({ compact = false }: { compact?: boolean }) {
         minZoom={0.3}
         maxZoom={1.65}
         nodesDraggable
-        onInit={(instance) => { rfRef.current = instance; }}
+        onInit={(instance) => {
+          rfRef.current = instance;
+        }}
         onNodeClick={onNodeClick}
         onNodeMouseEnter={onNodeMouseEnter}
         onNodeMouseLeave={onNodeMouseLeave}
@@ -549,8 +736,12 @@ export function ArchitectureGraph({ compact = false }: { compact?: boolean }) {
 
       {/* top-left HUD */}
       <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-2">
-        <div className={`glass rounded-md px-2.5 py-1 font-mono text-[11px] transition-colors duration-300 ${zoomAbstracted ? "text-amber" : "text-muted-foreground"}`}>
-          <span className={`mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle animate-pulse-glow ${zoomAbstracted ? "bg-amber" : "bg-emerald"}`} />
+        <div
+          className={`glass rounded-md px-2.5 py-1 font-mono text-[11px] transition-colors duration-300 ${zoomAbstracted ? "text-amber" : "text-muted-foreground"}`}
+        >
+          <span
+            className={`mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle animate-pulse-glow ${zoomAbstracted ? "bg-amber" : "bg-emerald"}`}
+          />
           {hudLabel}
         </div>
         {!zoomAbstracted && collapsedClusters.size > 0 && (
@@ -586,7 +777,9 @@ export function ArchitectureGraph({ compact = false }: { compact?: boolean }) {
             >
               <Layers className="h-2.5 w-2.5" />
               {c.label}
-              <span className="ml-0.5 font-sans text-[9px] opacity-60">{collapsed ? "▸" : "▾"}</span>
+              <span className="ml-0.5 font-sans text-[9px] opacity-60">
+                {collapsed ? "▸" : "▾"}
+              </span>
             </button>
           );
         })}
@@ -594,20 +787,22 @@ export function ArchitectureGraph({ compact = false }: { compact?: boolean }) {
 
       {/* Layout switcher — bottom-center */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
-        {(Object.entries(LAYOUT_META) as [Layout, typeof LAYOUT_META[Layout]][]).map(([key, { label, Icon }]) => (
-          <button
-            key={key}
-            onClick={() => switchLayout(key)}
-            className={`flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-all duration-150 ${
-              layout === key
-                ? "border-foreground/30 bg-foreground/10 text-foreground"
-                : "border-border/40 bg-surface/60 text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Icon className="h-2.5 w-2.5" />
-            {label}
-          </button>
-        ))}
+        {(Object.entries(LAYOUT_META) as [Layout, (typeof LAYOUT_META)[Layout]][]).map(
+          ([key, { label, Icon }]) => (
+            <button
+              key={key}
+              onClick={() => switchLayout(key)}
+              className={`flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-all duration-150 ${
+                layout === key
+                  ? "border-foreground/30 bg-foreground/10 text-foreground"
+                  : "border-border/40 bg-surface/60 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-2.5 w-2.5" />
+              {label}
+            </button>
+          ),
+        )}
       </div>
 
       {/* Edge filters — bottom-right */}
