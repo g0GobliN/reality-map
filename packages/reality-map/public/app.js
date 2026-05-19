@@ -54,6 +54,7 @@
   let lastGeneratedAt = scan.generatedAt;
 
   let selected = null;
+  let hoveredNode = null;
   let stack = [];
   let view = {
     x: 0,
@@ -67,6 +68,219 @@
   let drawerData = null; // { type: 'module'|'file', id }
   let allSymbols = []; // for symbol search filtering
   let mapMode = localStorage.getItem("rm-mode") || "arch"; // arch | activity | blast
+
+  // ── Phase 1: edge filter ──────────────────────────────────────
+  // "all" | "warn" | "hot" | "clean"
+  let edgeFilter = "all";
+
+  // ── Phase 2: clustering ───────────────────────────────────────
+  let collapsedClusters = new Set();
+
+  function detectClusters(nodes) {
+    // Group nodes by first path segment
+    const groups = new Map();
+    nodes.forEach((n) => {
+      const seg = n.id.split("/")[0];
+      if (!groups.has(seg)) groups.set(seg, []);
+      groups.get(seg).push(n.id);
+    });
+    // Only treat as a cluster if ≥2 members
+    const clusters = new Map();
+    groups.forEach((members, seg) => {
+      if (members.length >= 2) clusters.set(seg, members);
+    });
+    return clusters;
+  }
+
+  function buildClusteredGraph(graph) {
+    if (collapsedClusters.size === 0) return graph;
+    const clusters = detectClusters(graph.nodes);
+    const memberToCluster = new Map();
+    clusters.forEach((members, cid) => {
+      if (collapsedClusters.has(cid)) members.forEach((m) => memberToCluster.set(m, cid));
+    });
+
+    const clusterNodes = new Map();
+    const expandedNodes = [];
+
+    graph.nodes.forEach((n) => {
+      const cid = memberToCluster.get(n.id);
+      if (!cid) { expandedNodes.push(n); return; }
+      if (!clusterNodes.has(cid)) {
+        const members = clusters.get(cid);
+        const memberObjs = graph.nodes.filter((x) => members.includes(x.id));
+        const cx = Math.round(memberObjs.reduce((s, x) => s + x.x, 0) / memberObjs.length);
+        const cy = Math.round(memberObjs.reduce((s, x) => s + x.y, 0) / memberObjs.length);
+        const hasWarn = memberObjs.some((x) => x.warn);
+        const totalLoc = memberObjs.reduce((s, x) => s + (x.loc || 0), 0);
+        const totalFiles = memberObjs.reduce((s, x) => s + (x.files || 0), 0);
+        clusterNodes.set(cid, {
+          id: "__cluster__" + cid,
+          label: cid + "/",
+          sub: members.length + " modules · " + totalFiles + " files",
+          tone: hasWarn ? "rose" : "cyan",
+          warn: hasWarn,
+          isCluster: true,
+          clusterId: cid,
+          clusterMembers: members,
+          loc: totalLoc,
+          files: totalFiles,
+          fanIn: 0,
+          fanOut: 0,
+          x: cx,
+          y: cy,
+        });
+      }
+    });
+
+    const nodes = [...expandedNodes, ...clusterNodes.values()];
+    const nodeIds = new Set(nodes.map((n) => n.id));
+
+    // Reroute + deduplicate edges
+    const edgeMap = new Map();
+    graph.edges.forEach((e) => {
+      const src = memberToCluster.has(e.source) ? "__cluster__" + memberToCluster.get(e.source) : e.source;
+      const tgt = memberToCluster.has(e.target) ? "__cluster__" + memberToCluster.get(e.target) : e.target;
+      if (src === tgt || !nodeIds.has(src) || !nodeIds.has(tgt)) return;
+      const key = src + "|" + tgt;
+      if (!edgeMap.has(key)) edgeMap.set(key, { ...e, id: "ce" + edgeMap.size, source: src, target: tgt });
+    });
+
+    return { ...graph, nodes, edges: Array.from(edgeMap.values()) };
+  }
+
+  // ── Phase 3: layout algorithms ────────────────────────────────
+  // "server" | "radial" | "force"
+  let currentLayout = localStorage.getItem("rm-layout") || "server";
+  // Store computed positions per layout so switching is instant
+  const layoutPositions = { server: null, radial: null, force: null };
+
+  function applyLayout(graph) {
+    const positions = layoutPositions[currentLayout];
+    if (!positions || currentLayout === "server") return graph;
+    return {
+      ...graph,
+      nodes: graph.nodes.map((n) => {
+        const p = positions.get(n.id);
+        return p ? { ...n, x: p.x, y: p.y } : n;
+      }),
+    };
+  }
+
+  function computeRadialPositions(nodes) {
+    const positions = new Map();
+    const n = nodes.length;
+    if (!n) return positions;
+    const cx = 500, cy = 320, r = Math.min(280, Math.max(180, n * 28));
+    nodes.forEach((node, i) => {
+      const angle = (2 * Math.PI * i) / n - Math.PI / 2;
+      positions.set(node.id, {
+        x: Math.round(cx + r * Math.cos(angle)),
+        y: Math.round(cy + r * Math.sin(angle)),
+      });
+    });
+    return positions;
+  }
+
+  function computeForcePositions(nodes, edges) {
+    const positions = new Map();
+    const n = nodes.length;
+    if (!n) return positions;
+
+    // Seed with current positions
+    const pos = nodes.map((node) => ({ id: node.id, x: node.x, y: node.y, vx: 0, vy: 0 }));
+    const byId = new Map(pos.map((p) => [p.id, p]));
+
+    const REPEL = 14000, ATTRACT = 0.012, DAMPING = 0.82, ITERS = 120;
+
+    for (let iter = 0; iter < ITERS; iter++) {
+      // Repulsion between all pairs
+      for (let i = 0; i < pos.length; i++) {
+        for (let j = i + 1; j < pos.length; j++) {
+          const a = pos[i], b = pos[j];
+          const dx = a.x - b.x || 0.1, dy = a.y - b.y || 0.1;
+          const dist2 = dx * dx + dy * dy || 1;
+          const force = REPEL / dist2;
+          a.vx += (dx / Math.sqrt(dist2)) * force;
+          a.vy += (dy / Math.sqrt(dist2)) * force;
+          b.vx -= (dx / Math.sqrt(dist2)) * force;
+          b.vy -= (dy / Math.sqrt(dist2)) * force;
+        }
+      }
+      // Attraction along edges
+      edges.forEach((e) => {
+        const a = byId.get(e.source), b = byId.get(e.target);
+        if (!a || !b) return;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        a.vx += dx * ATTRACT;
+        a.vy += dy * ATTRACT;
+        b.vx -= dx * ATTRACT;
+        b.vy -= dy * ATTRACT;
+      });
+      // Integrate
+      pos.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= DAMPING;
+        p.vy *= DAMPING;
+      });
+    }
+
+    // Normalise to start at (60, 60) with 200px padding
+    const minX = Math.min(...pos.map((p) => p.x));
+    const minY = Math.min(...pos.map((p) => p.y));
+    pos.forEach((p) => {
+      positions.set(p.id, { x: Math.round(p.x - minX + 60), y: Math.round(p.y - minY + 60) });
+    });
+    return positions;
+  }
+
+  function switchLayout(layout) {
+    if (layout === currentLayout) return;
+    currentLayout = layout;
+    localStorage.setItem("rm-layout", layout);
+    // Compute positions lazily for non-server layouts
+    if (layout !== "server" && currentViewGraph) {
+      if (layout === "radial") layoutPositions.radial = computeRadialPositions(currentViewGraph.nodes);
+      if (layout === "force") layoutPositions.force = computeForcePositions(currentViewGraph.nodes, currentViewGraph.edges);
+    }
+    document.querySelectorAll(".layout-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.layout === layout);
+    });
+    if (currentViewGraph) { fit(currentViewGraph); draw(currentViewGraph); }
+  }
+
+  // ── Phase 1: path reachability (BFS both directions) ─────────
+  function getReachableNodes(nodeId, edges) {
+    const fwd = new Set([nodeId]);
+    const bwd = new Set([nodeId]);
+    let queue = [nodeId];
+    while (queue.length) {
+      const curr = queue.shift();
+      edges.forEach((e) => {
+        if (e.source === curr && !fwd.has(e.target)) { fwd.add(e.target); queue.push(e.target); }
+      });
+      queue = [];
+    }
+    queue = [nodeId];
+    while (queue.length) {
+      const curr = queue.shift();
+      edges.forEach((e) => {
+        if (e.target === curr && !bwd.has(e.source)) { bwd.add(e.source); queue.push(e.source); }
+      });
+      queue = [];
+    }
+    return new Set([...fwd, ...bwd]);
+  }
+
+  function edgePassesFilter(e, nodeById) {
+    if (edgeFilter === "all") return true;
+    const a = nodeById.get(e.source), b = nodeById.get(e.target);
+    if (edgeFilter === "warn") return (a && a.warn) || (b && b.warn);
+    if (edgeFilter === "hot") return (e.weight || 1) >= 3;
+    if (edgeFilter === "clean") return !((a && a.warn) || (b && b.warn)) && (e.weight || 1) < 3;
+    return true;
+  }
 
   // ── Depth select ──────────────────────────────────────────────
   function fillDepthSelect() {
@@ -688,8 +902,12 @@
   let lastFitKey = "";
 
   function render() {
-    currentViewGraph = computeViewGraph();
-    const graph = currentViewGraph;
+    let graph = computeViewGraph();
+    // Phase 2: apply clustering
+    graph = buildClusteredGraph(graph);
+    // Phase 3: apply layout positions
+    if (currentLayout !== "server") graph = applyLayout(graph);
+    currentViewGraph = graph;
 
     if (selected && !graph.nodes.some((n) => n.id === selected)) selected = null;
 
@@ -740,13 +958,51 @@
     updateDetailPanel(graph);
     setBackButton();
 
+    // Phase 3: compute layout positions lazily when switching away from server layout
+    if (currentLayout === "radial" && !layoutPositions.radial)
+      layoutPositions.radial = computeRadialPositions(graph.nodes);
+    if (currentLayout === "force" && !layoutPositions.force)
+      layoutPositions.force = computeForcePositions(graph.nodes, graph.edges);
+    // Re-apply layout after computing positions
+    if (currentLayout !== "server") graph = applyLayout(graph);
+
+    // Phase 2: update cluster toggle buttons
+    updateClusterControls(computeViewGraph());
+
     // Only re-fit when the graph structure changes (depth or prefix), not on selection clicks
-    const fitKey = `${view.depth}:${view.prefix || ""}:${graph.nodes.length}`;
+    const fitKey = `${view.depth}:${view.prefix || ""}:${graph.nodes.length}:${currentLayout}:${collapsedClusters.size}`;
     if (fitKey !== lastFitKey) {
       lastFitKey = fitKey;
       fit(graph);
     }
     draw(graph);
+  }
+
+  function updateClusterControls(rawGraph) {
+    const wrap = document.getElementById("cluster-toggles");
+    if (!wrap) return;
+    const clusters = detectClusters(rawGraph.nodes);
+    if (clusters.size < 2) { wrap.parentElement && (wrap.parentElement.hidden = true); return; }
+    if (wrap.parentElement) wrap.parentElement.hidden = false;
+    wrap.innerHTML = "";
+    clusters.forEach((members, cid) => {
+      const collapsed = collapsedClusters.has(cid);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cluster-btn" + (collapsed ? " active" : "");
+      btn.textContent = cid + "/ (" + members.length + ") " + (collapsed ? "▸" : "▾");
+      btn.title = collapsed ? "Expand cluster" : "Collapse cluster";
+      btn.onclick = () => {
+        if (collapsed) collapsedClusters.delete(cid);
+        else collapsedClusters.add(cid);
+        // Invalidate layout cache so positions recompute for new node set
+        layoutPositions.radial = null;
+        layoutPositions.force = null;
+        lastFitKey = "";
+        render();
+      };
+      wrap.appendChild(btn);
+    });
   }
 
   // ── Insights & Files tabs ─────────────────────────────────────
@@ -902,10 +1158,14 @@
     let blastSet = mapMode === "blast" ? getBlastRadius(selected, graph) : new Set();
 
     const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-    const incidentToSelected = new Set();
-    if (selected) {
+
+    // Phase 1: determine focus node (selection or hover)
+    const focusId = selected || hoveredNode;
+    const focusReachable = focusId ? getReachableNodes(focusId, graph.edges) : null;
+    const incidentToFocus = new Set();
+    if (focusId) {
       graph.edges.forEach((e) => {
-        if (e.source === selected || e.target === selected) incidentToSelected.add(e.id);
+        if (e.source === focusId || e.target === focusId) incidentToFocus.add(e.id);
       });
     }
 
@@ -914,6 +1174,9 @@
       const a = byId.get(e.source),
         b = byId.get(e.target);
       if (!a || !b) return;
+
+      // Phase 1: edge filter
+      if (!edgePassesFilter(e, byId)) return;
 
       // Get source/target node dimensions
       const aW = NW + Math.min(60, (a.loc / maxLoc) * 100);
@@ -930,12 +1193,17 @@
       if (a.warn || b.warn) cls.push("warn");
       if (e.weight >= 3) cls.push("hot", "animated");
       else cls.push("animated");
-      if (selected && !incidentToSelected.has(e.id)) cls.push("dim");
+      // Phase 1: dim edges not incident to focused node; boost incident ones
+      if (focusId) {
+        if (incidentToFocus.has(e.id)) cls.push("focus");
+        else cls.push("dim");
+      }
+      const edgeColor = a.warn || b.warn ? TONE.rose : e.weight >= 3 ? TONE.amber : TONE.cyan;
       const pathEl = el("path", {
         d,
         class: cls.join(" "),
         "marker-end": "url(#arrow)",
-        style: `color:${a.warn || b.warn ? TONE.rose : TONE.cyan}; stroke:${a.warn || b.warn ? TONE.rose : TONE.cyan}`,
+        style: `color:${edgeColor}; stroke:${edgeColor}`,
       });
       // Edge tooltip on hover
       pathEl.addEventListener("mouseenter", (ev) => {
@@ -974,16 +1242,12 @@
       const curW = NW + extraW;
       const curH = NH + extraH;
 
-      const dimmed =
-        selected &&
-        selected !== n.id &&
-        !graph.edges.some(
-          (e) =>
-            (e.source === selected && e.target === n.id) ||
-            (e.target === selected && e.source === n.id),
-        );
-      g.setAttribute("opacity", dimmed ? "0.35" : "1");
-      if (dimmed) g.style.filter = "grayscale(0.5) blur(0.5px)";
+      // Phase 1: path highlighting — dim nodes outside reachable set
+      const dimmed = focusReachable ? !focusReachable.has(n.id) : false;
+      const highlighted = focusId && focusId === n.id;
+      g.setAttribute("opacity", dimmed ? "0.25" : "1");
+      if (dimmed) g.style.filter = "grayscale(0.6) blur(0.5px)";
+      else if (highlighted) g.style.filter = `drop-shadow(0 0 12px ${accentColor})`;
       else g.style.filter = "none";
 
       const pct = Math.round((n.loc / barMax) * 100);
@@ -1041,6 +1305,28 @@
 
       fo.appendChild(card);
       g.appendChild(fo);
+
+      // Phase 2: cluster node click → expand
+      if (n.isCluster) {
+        g.style.cursor = "pointer";
+        g.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          if (g.dataset.moved === "1") { g.dataset.moved = "0"; return; }
+          collapsedClusters.delete(n.clusterId);
+          updateClusterControls(currentViewGraph);
+          render();
+        });
+        rootG.appendChild(g);
+        return;
+      }
+
+      // Phase 1: hover → edge focus
+      g.addEventListener("mouseenter", () => {
+        if (!selected) { hoveredNode = n.id; draw(currentViewGraph); }
+      });
+      g.addEventListener("mouseleave", () => {
+        if (!selected) { hoveredNode = null; draw(currentViewGraph); }
+      });
 
       makeDraggable(g, n);
       g.addEventListener("click", (ev) => {
@@ -1248,6 +1534,7 @@
     } catch {}
   });
   svg.addEventListener("click", () => {
+    hoveredNode = null;
     if (selected) {
       selected = null;
       closeDrawer();
@@ -1278,6 +1565,24 @@
       draw(currentViewGraph);
     }
   };
+
+  // ── Phase 3: layout buttons ───────────────────────────────────
+  document.querySelectorAll(".layout-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.layout === currentLayout);
+    btn.addEventListener("click", () => switchLayout(btn.dataset.layout));
+  });
+
+  // ── Phase 1: edge filter buttons ──────────────────────────────
+  document.querySelectorAll(".edge-filter-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.filter === edgeFilter);
+    btn.addEventListener("click", () => {
+      edgeFilter = btn.dataset.filter;
+      document.querySelectorAll(".edge-filter-btn").forEach((b) =>
+        b.classList.toggle("active", b.dataset.filter === edgeFilter),
+      );
+      if (currentViewGraph) draw(currentViewGraph);
+    });
+  });
 
   if (backBtn) {
     backBtn.onclick = () => {
