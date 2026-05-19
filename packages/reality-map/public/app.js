@@ -76,6 +76,7 @@
 
   // ── Phase 2: clustering ───────────────────────────────────────
   let collapsedClusters = new Set();
+  let selectedClusterFilter = null;
 
   function detectClusters(nodes) {
     // Group nodes by first path segment
@@ -248,7 +249,12 @@
     document.querySelectorAll(".layout-btn").forEach((b) => {
       b.classList.toggle("active", b.dataset.layout === layout);
     });
-    if (currentViewGraph) { fit(currentViewGraph); draw(currentViewGraph); }
+    if (currentViewGraph) {
+      const laid = applyLayout(currentViewGraph);
+      currentViewGraph = laid;
+      fit(laid);
+      draw(laid);
+    }
   }
 
   // ── Phase 1: path reachability (BFS both directions) ─────────
@@ -464,26 +470,31 @@
 
   function computeViewGraph() {
     const depthGraph = getDepthGraph(view.depth);
-    if (!view.prefix) return depthGraph;
-    const prefix = view.prefix;
-    const nodes = depthGraph.nodes.filter((n) => n.id === prefix || n.id.startsWith(prefix + "/"));
-    const nodeSet = new Set(nodes.map((n) => n.id));
-    const edges = depthGraph.edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target));
-    const cycles = depthGraph.cycles.filter((cy) => cy.every((n) => nodeSet.has(n)));
-    const loc = nodes.reduce((a, n) => a + (n.loc || 0), 0);
-    return {
-      ...depthGraph,
-      nodes,
-      edges,
-      cycles,
-      stats: {
-        ...(depthGraph.stats || {}),
-        modules: nodes.length,
-        edges: edges.length,
-        cycles: cycles.length,
-        loc,
-      },
-    };
+
+    function filterGraph(base, keepFn) {
+      const nodes = base.nodes.filter(keepFn);
+      const nodeSet = new Set(nodes.map((n) => n.id));
+      const edges = base.edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target));
+      const cycles = base.cycles.filter((cy) => cy.every((n) => nodeSet.has(n)));
+      const loc = nodes.reduce((a, n) => a + (n.loc || 0), 0);
+      return {
+        ...base,
+        nodes,
+        edges,
+        cycles,
+        stats: { ...(base.stats || {}), modules: nodes.length, edges: edges.length, cycles: cycles.length, loc },
+      };
+    }
+
+    let baseGraph = depthGraph;
+    if (view.prefix) {
+      const prefix = view.prefix;
+      baseGraph = filterGraph(depthGraph, (n) => n.id === prefix || n.id.startsWith(prefix + "/"));
+    }
+    if (selectedClusterFilter) {
+      baseGraph = filterGraph(baseGraph, (n) => n.id.split("/")[0] === selectedClusterFilter);
+    }
+    return baseGraph;
   }
 
   // ── File Drawer ───────────────────────────────────────────────
@@ -1020,11 +1031,15 @@
     // Re-apply layout after computing positions
     if (currentLayout !== "server") graph = applyLayout(graph);
 
-    // Phase 2: update cluster toggle buttons
-    updateClusterControls(computeViewGraph());
+    // Phase 2: update cluster toggle buttons — use unfiltered graph so buttons stay visible while a cluster is focused
+    const _savedFilter = selectedClusterFilter;
+    selectedClusterFilter = null;
+    const unfilteredGraph = computeViewGraph();
+    selectedClusterFilter = _savedFilter;
+    updateClusterControls(unfilteredGraph);
 
     // Only re-fit when the graph structure changes (depth or prefix), not on selection clicks
-    const fitKey = `${view.depth}:${view.prefix || ""}:${graph.nodes.length}:${currentLayout}:${collapsedClusters.size}`;
+    const fitKey = `${view.depth}:${view.prefix || ""}:${graph.nodes.length}:${currentLayout}:${collapsedClusters.size}:${selectedClusterFilter || ""}`;
     if (fitKey !== lastFitKey) {
       lastFitKey = fitKey;
       fit(graph);
@@ -1040,16 +1055,14 @@
     if (wrap.parentElement) wrap.parentElement.hidden = false;
     wrap.innerHTML = "";
     clusters.forEach((members, cid) => {
-      const collapsed = collapsedClusters.has(cid);
+      const focused = selectedClusterFilter === cid;
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "cluster-btn" + (collapsed ? " active" : "");
-      btn.textContent = cid + "/ (" + members.length + ") " + (collapsed ? "▸" : "▾");
-      btn.title = collapsed ? "Expand cluster" : "Collapse cluster";
+      btn.className = "cluster-btn" + (focused ? " active" : "");
+      btn.textContent = cid + "/ (" + members.length + ")";
+      btn.title = focused ? "Clear cluster filter" : "Focus: show only this cluster";
       btn.onclick = () => {
-        if (collapsed) collapsedClusters.delete(cid);
-        else collapsedClusters.add(cid);
-        // Invalidate layout cache so positions recompute for new node set
+        selectedClusterFilter = focused ? null : cid;
         layoutPositions.radial = null;
         layoutPositions.force = null;
         lastFitKey = "";
