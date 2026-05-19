@@ -116,6 +116,10 @@
         </div>
         <div id="map-legend" class="mono dim" style="margin-top: 12px; font-size: 10px; padding: 0 8px;"></div>
       </div>
+      <div id="cluster-section" hidden>
+        <h3>Clusters</h3>
+        <div id="cluster-toggles" class="cluster-toggles"></div>
+      </div>
       <h3>Modules</h3>
       <div id="module-list" class="list"></div>
       <h3>Selected</h3>
@@ -138,6 +142,22 @@
       <div class="kbd-hint mono dim" id="kbd-hint">/ search · F fit · R rescan · H help · wheel zoom · click module to drill in</div>
       <!-- Edge tooltip -->
       <div id="edge-tooltip" class="edge-tooltip" hidden></div>
+      <!-- Graph controls overlay -->
+      <div class="graph-controls">
+        <div class="graph-ctrl-group">
+          <span class="graph-ctrl-label">layout</span>
+          <button type="button" class="layout-btn" data-layout="server" title="Server-computed layered layout">layered</button>
+          <button type="button" class="layout-btn" data-layout="radial" title="Radial / circular layout">radial</button>
+          <button type="button" class="layout-btn" data-layout="force" title="Force-directed layout">force</button>
+        </div>
+        <div class="graph-ctrl-group">
+          <span class="graph-ctrl-label">edges</span>
+          <button type="button" class="edge-filter-btn" data-filter="all">all</button>
+          <button type="button" class="edge-filter-btn" data-filter="warn">cycles</button>
+          <button type="button" class="edge-filter-btn" data-filter="hot">hot</button>
+          <button type="button" class="edge-filter-btn" data-filter="clean">clean</button>
+        </div>
+      </div>
     </section>
     <!-- File detail drawer -->
     <aside id="file-drawer" class="file-drawer glass" hidden>

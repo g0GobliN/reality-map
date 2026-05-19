@@ -18,8 +18,8 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: 
 body {
   display: flex; flex-direction: column; height: 100vh; overflow: hidden;
   background-image:
-    radial-gradient(900px 500px at 10% -5%, oklch(0.82 0.16 210 / 0.09), transparent 60%),
-    radial-gradient(700px 400px at 100% 0%, oklch(0.72 0.19 295 / 0.09), transparent 60%);
+    radial-gradient(900px 500px at 10% -5%, oklch(0.82 0.16 210 / 0.05), transparent 60%),
+    radial-gradient(700px 400px at 100% 0%, oklch(0.72 0.19 295 / 0.05), transparent 60%);
   background-attachment: fixed;
 }
 .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: 12px; }
@@ -80,9 +80,9 @@ body {
   min-height: 0;
   overflow: hidden;
   background:
-    radial-gradient(900px 500px at 75% 20%, oklch(0.72 0.19 295 / 0.12), transparent 60%),
-    radial-gradient(800px 600px at 20% 80%, oklch(0.82 0.16 210 / 0.09), transparent 60%),
-    radial-gradient(600px 400px at 50% 50%, oklch(0.82 0.16 75 / 0.04), transparent 70%),
+    radial-gradient(900px 500px at 75% 20%, oklch(0.72 0.19 295 / 0.07), transparent 60%),
+    radial-gradient(800px 600px at 20% 80%, oklch(0.82 0.16 210 / 0.05), transparent 60%),
+    radial-gradient(600px 400px at 50% 50%, oklch(0.82 0.16 75 / 0.02), transparent 70%),
     var(--bg-2);
 }
 #canvas {
@@ -503,3 +503,43 @@ body {
 .drawer-kv:last-child { border-bottom: none; }
 .drawer-kv > span:first-child { color: var(--muted); flex: none; }
 .drawer-kv > span:last-child { text-align: right; word-break: break-all; }
+
+/* ── Phase 1–3: graph controls overlay ───────────────────────── */
+.graph-controls {
+  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 8px; align-items: center;
+  background: oklch(0.14 0.017 265 / 0.88);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 5px 10px; backdrop-filter: blur(8px); z-index: 10;
+}
+.graph-ctrl-group { display: flex; align-items: center; gap: 4px; }
+.graph-ctrl-group + .graph-ctrl-group { border-left: 1px solid var(--border); padding-left: 8px; }
+.graph-ctrl-label {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--muted); margin-right: 2px;
+}
+.layout-btn, .edge-filter-btn {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  border-radius: 6px; padding: 2px 8px; font-size: 11px; cursor: pointer;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.layout-btn:hover, .edge-filter-btn:hover { color: var(--fg); border-color: var(--fg); }
+.layout-btn.active { color: var(--cyan); border-color: var(--cyan); background: oklch(0.82 0.16 210 / 0.12); }
+.edge-filter-btn.active { color: var(--cyan); border-color: var(--cyan); background: oklch(0.82 0.16 210 / 0.12); }
+
+/* Phase 2: cluster toggle buttons in sidebar */
+.cluster-toggles { display: flex; flex-direction: column; gap: 4px; padding: 0 8px 10px; }
+.cluster-btn {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  border-radius: 6px; padding: 3px 8px; font-size: 11px; cursor: pointer;
+  font-family: "JetBrains Mono", ui-monospace, monospace; text-align: left;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.cluster-btn:hover { color: var(--fg); border-color: var(--fg); }
+.cluster-btn.active { color: var(--cyan); border-color: var(--cyan); background: oklch(0.82 0.16 210 / 0.12); }
+
+/* Phase 1: focused edge style */
+.edge.focus { opacity: 1 !important; stroke-width: 2.2px !important; }
+.edge.dim { opacity: 0.08 !important; }
