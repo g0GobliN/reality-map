@@ -22,6 +22,7 @@
   const moduleSort = document.getElementById("module-sort");
   const depthSelect = document.getElementById("depth-select");
   const viewMap = document.getElementById("view-map");
+  const canvasWrap = document.querySelector(".canvas-wrap");
   const viewInsights = document.getElementById("view-insights");
   const viewFiles = document.getElementById("view-files");
   const fileFilter = document.getElementById("file-filter");
@@ -260,7 +261,6 @@
       edges.forEach((e) => {
         if (e.source === curr && !fwd.has(e.target)) { fwd.add(e.target); queue.push(e.target); }
       });
-      queue = [];
     }
     queue = [nodeId];
     while (queue.length) {
@@ -268,7 +268,6 @@
       edges.forEach((e) => {
         if (e.target === curr && !bwd.has(e.source)) { bwd.add(e.source); queue.push(e.source); }
       });
-      queue = [];
     }
     return new Set([...fwd, ...bwd]);
   }
@@ -345,6 +344,54 @@
       return "#334155";
     }
     return TONE[n.tone] || TONE.cyan;
+  }
+
+  // Derive a hue from a string (for modules that all share the same tone, e.g. "cyan")
+  function hashHue(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+    // Map to a pleasant hue range avoiding too-dark regions, skip near-white 80-100
+    const hues = [18, 45, 75, 140, 160, 185, 210, 250, 270, 295, 320];
+    return hues[h % hues.length];
+  }
+
+  const TONE_HUE = { cyan: 210, violet: 295, emerald: 160, amber: 75, rose: 18 };
+
+  // Create a dedicated tint overlay div inside canvas-wrap
+  let tintOverlay = null;
+  function getTintOverlay() {
+    if (tintOverlay) return tintOverlay;
+    tintOverlay = document.createElement("div");
+    tintOverlay.style.cssText = [
+      "position:absolute",
+      "inset:0",
+      "pointer-events:none",
+      "z-index:-1",
+      "transition:opacity 0.6s ease",
+      "opacity:0",
+      "border-radius:14px",
+      "mix-blend-mode:screen",
+      "filter:blur(60px)",
+    ].join(";");
+    if (canvasWrap) canvasWrap.prepend(tintOverlay);
+    return tintOverlay;
+  }
+
+  function updateCanvasTint(n) {
+    const overlay = getTintOverlay();
+    if (!n) {
+      overlay.style.opacity = "0";
+      return;
+    }
+    const tone = n.tone || "cyan";
+    let hue = TONE_HUE[tone];
+    // If tone is the generic default (cyan), derive unique hue from module id
+    if (!hue || tone === "cyan") hue = hashHue(n.id || n.label || "cyan");
+    overlay.style.background = [
+      `radial-gradient(ellipse 80% 55% at 70% 10%, oklch(0.28 0.12 ${hue} / 0.22), transparent 65%)`,
+      `radial-gradient(ellipse 55% 45% at 10% 90%, oklch(0.22 0.09 ${hue} / 0.18), transparent 65%)`,
+    ].join(", ");
+    overlay.style.opacity = "1";
   }
 
   function updateLegend() {
@@ -818,6 +865,9 @@
       view.depth = Math.min(maxDepth, view.depth + 1);
       depthSelect.value = String(view.depth);
       selected = moduleId;
+      // Tint background to drilled-in module color
+      const n = currentViewGraph && currentViewGraph.nodes.find(x => x.id === moduleId);
+      if (n) updateCanvasTint(n);
       render();
       showModuleDrawer(moduleId, true, clickedDepth);
       return;
@@ -825,10 +875,14 @@
     // At max depth: toggle selection + open drawer
     if (selected === moduleId) {
       selected = null;
+      updateCanvasTint(null);
       closeDrawer();
       render();
     } else {
       selected = moduleId;
+      // Tint background to selected module color
+      const n = currentViewGraph && currentViewGraph.nodes.find(x => x.id === moduleId);
+      if (n) updateCanvasTint(n);
       render();
       showModuleDrawer(moduleId);
     }
@@ -1129,6 +1183,33 @@
     view.y = (h - (maxY - minY) * k) / 2 - minY * k;
   }
 
+  function applyHoverState(focusId) {
+    if (!currentViewGraph) return;
+    const reachable = focusId ? getReachableNodes(focusId, currentViewGraph.edges) : null;
+    svg.querySelectorAll("g.node-group").forEach((g) => {
+      const id = g.dataset.id;
+      const dimmed = reachable ? (!reachable.has(id) && id !== focusId) : false;
+      const hl = focusId === id;
+      g.style.opacity = dimmed ? "0.18" : "1";
+      if (dimmed) g.style.filter = "grayscale(0.6) blur(0.5px)";
+      else if (hl) {
+        const hlNode = currentViewGraph.nodes.find((x) => x.id === id);
+        const hlColor = hlNode ? getModuleColor(hlNode, mapMode, null) : TONE.cyan;
+        g.style.filter = `drop-shadow(0 0 6px ${hlColor})`;
+      } else g.style.filter = "";
+    });
+    svg.querySelectorAll("path.edge").forEach((path) => {
+      const src = path.dataset.src, tgt = path.dataset.tgt;
+      if (!focusId) {
+        path.classList.remove("dim", "focus");
+        return;
+      }
+      const incident = src === focusId || tgt === focusId;
+      path.classList.toggle("focus", incident);
+      path.classList.toggle("dim", !incident);
+    });
+  }
+
   function draw(graph) {
     svg.innerHTML = "";
     const defs = el("defs");
@@ -1137,7 +1218,7 @@
         <stop offset="0" stop-color="oklch(0.21 0.022 265)" stop-opacity="0.97"/>
         <stop offset="1" stop-color="oklch(0.14 0.017 265)" stop-opacity="0.97"/>
       </linearGradient>
-      <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
         <path d="M0,0 L10,5 L0,10 z" fill="currentColor" opacity="0.5"/>
       </marker>
     `;
@@ -1159,16 +1240,6 @@
 
     const byId = new Map(graph.nodes.map((n) => [n.id, n]));
 
-    // Phase 1: determine focus node (selection or hover)
-    const focusId = selected || hoveredNode;
-    const focusReachable = focusId ? getReachableNodes(focusId, graph.edges) : null;
-    const incidentToFocus = new Set();
-    if (focusId) {
-      graph.edges.forEach((e) => {
-        if (e.source === focusId || e.target === focusId) incidentToFocus.add(e.id);
-      });
-    }
-
     const edgesG = el("g");
     graph.edges.forEach((e) => {
       const a = byId.get(e.source),
@@ -1181,28 +1252,44 @@
       // Get source/target node dimensions
       const aW = NW + Math.min(60, (a.loc / maxLoc) * 100);
       const aH = NH + Math.min(40, (a.loc / maxLoc) * 60);
+      const bW = NW + Math.min(60, (b.loc / maxLoc) * 100);
       const bH = NH + Math.min(40, (b.loc / maxLoc) * 60);
 
-      const x1 = a.x + aW,
-        y1 = a.y + aH / 2;
-      const x2 = b.x,
-        y2 = b.y + bH / 2;
-      const cx = (x1 + x2) / 2;
-      const d = `M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`;
+      // Exit from the side of source that faces the target, prefer horizontal if dx >= dy
+      const aCx = a.x + aW / 2, aCy = a.y + aH / 2;
+      const bCx = b.x + bW / 2, bCy = b.y + bH / 2;
+      const rawDx = bCx - aCx, rawDy = bCy - aCy;
+      let x1, y1, x2, y2, d;
+      if (Math.abs(rawDx) >= Math.abs(rawDy) * 0.6) {
+        // Horizontal exit/entry
+        x1 = rawDx >= 0 ? a.x + aW : a.x;
+        y1 = aCy;
+        x2 = rawDx >= 0 ? b.x : b.x + bW;
+        y2 = bCy;
+        const ctrl = Math.max(50, Math.abs(x2 - x1) * 0.45 + Math.abs(y2 - y1) * 0.1);
+        const sx = x2 >= x1 ? 1 : -1;
+        d = `M${x1},${y1} C${x1+sx*ctrl},${y1} ${x2-sx*ctrl},${y2} ${x2},${y2}`;
+      } else {
+        // Vertical exit/entry — use center-X, exit bottom or top
+        x1 = aCx;
+        y1 = rawDy >= 0 ? a.y + aH : a.y;
+        x2 = bCx;
+        y2 = rawDy >= 0 ? b.y : b.y + bH;
+        const ctrl = Math.max(50, Math.abs(y2 - y1) * 0.45 + Math.abs(x2 - x1) * 0.1);
+        const sy = y2 >= y1 ? 1 : -1;
+        d = `M${x1},${y1} C${x1},${y1+sy*ctrl} ${x2},${y2-sy*ctrl} ${x2},${y2}`;
+      }
       const cls = ["edge"];
       if (a.warn || b.warn) cls.push("warn");
       if (e.weight >= 3) cls.push("hot", "animated");
       else cls.push("animated");
-      // Phase 1: dim edges not incident to focused node; boost incident ones
-      if (focusId) {
-        if (incidentToFocus.has(e.id)) cls.push("focus");
-        else cls.push("dim");
-      }
       const edgeColor = a.warn || b.warn ? TONE.rose : e.weight >= 3 ? TONE.amber : TONE.cyan;
       const pathEl = el("path", {
         d,
         class: cls.join(" "),
         "marker-end": "url(#arrow)",
+        "data-src": e.source,
+        "data-tgt": e.target,
         style: `color:${edgeColor}; stroke:${edgeColor}`,
       });
       // Edge tooltip on hover
@@ -1242,14 +1329,6 @@
       const curW = NW + extraW;
       const curH = NH + extraH;
 
-      // Phase 1: path highlighting — dim nodes outside reachable set
-      const dimmed = focusReachable ? !focusReachable.has(n.id) : false;
-      const highlighted = focusId && focusId === n.id;
-      g.setAttribute("opacity", dimmed ? "0.25" : "1");
-      if (dimmed) g.style.filter = "grayscale(0.6) blur(0.5px)";
-      else if (highlighted) g.style.filter = `drop-shadow(0 0 12px ${accentColor})`;
-      else g.style.filter = "none";
-
       const pct = Math.round((n.loc / barMax) * 100);
       const labelTxt = n.label.length > 26 ? n.label.slice(0, 24) + "…" : n.label;
       const subTxt = (n.sub ?? "") + " · ⇣" + (n.fanIn ?? 0) + " ⇡" + (n.fanOut ?? 0);
@@ -1269,6 +1348,7 @@
         ? 'This is an "Isolated Island" — it\'s not connected to the rest of your app.'
         : 'This is a "Tangled Knot" — circular connections make the code harder to maintain.';
 
+      card.style.background = `radial-gradient(ellipse 100% 55% at 50% 0%, color-mix(in oklab, ${accentColor} 10%, transparent) 0%, transparent 70%), linear-gradient(160deg, oklch(0.21 0.022 265 / 0.97), oklch(0.14 0.017 265 / 0.97))`;
       card.innerHTML = `
         <div class="node-fo-top" style="background:linear-gradient(90deg,transparent,${accentColor},transparent)"></div>
         <div class="node-fo-inner">
@@ -1320,14 +1400,6 @@
         return;
       }
 
-      // Phase 1: hover → edge focus
-      g.addEventListener("mouseenter", () => {
-        if (!selected) { hoveredNode = n.id; draw(currentViewGraph); }
-      });
-      g.addEventListener("mouseleave", () => {
-        if (!selected) { hoveredNode = null; draw(currentViewGraph); }
-      });
-
       makeDraggable(g, n);
       g.addEventListener("click", (ev) => {
         ev.stopPropagation();
@@ -1342,6 +1414,7 @@
     });
 
     drawMinimap(graph);
+    applyHoverState(selected || hoveredNode || null);
   }
 
   // ── Edge tooltip ──────────────────────────────────────────────
@@ -1462,7 +1535,9 @@
       rect.setAttribute("width", Math.max(4, curW * sc));
       rect.setAttribute("height", Math.max(2, curH * sc));
       rect.setAttribute("rx", 2);
-      rect.setAttribute("fill", n.id === selected ? "#67e8f9" : "rgba(103,232,249,0.25)");
+      const nodeColor = getModuleColor(n, mapMode, null);
+      rect.setAttribute("fill", nodeColor);
+      rect.setAttribute("fill-opacity", n.id === selected ? "0.9" : "0.25");
       svgEl.appendChild(rect);
     });
 
@@ -1537,10 +1612,48 @@
     hoveredNode = null;
     if (selected) {
       selected = null;
+      updateCanvasTint(null);
       closeDrawer();
       render();
     }
   });
+
+  // Track hover at SVG level so foreignObject HTML content can't steal mouseleave from g elements
+  function findNodeGroupAt(clientX, clientY) {
+    // Use elementFromPoint for cross-browser reliability (Firefox composedPath
+    // does not cross the SVG foreignObject → HTML boundary)
+    const svgRect = svg.getBoundingClientRect();
+    // Check a few points (center + slight offset) to handle foreignObject edges
+    const candidates = [
+      [clientX, clientY],
+      [clientX - 1, clientY],
+      [clientX, clientY - 1],
+    ];
+    for (const [x, y] of candidates) {
+      let el = document.elementFromPoint(x, y);
+      while (el && el !== svg) {
+        if (el.classList && el.classList.contains("node-group")) return el;
+        el = el.parentElement;
+      }
+    }
+    return null;
+  }
+  svg.addEventListener("pointermove", (ev) => {
+    if (selected || ev.buttons !== 0) return;
+    const nodeGroup = findNodeGroupAt(ev.clientX, ev.clientY);
+    const id = nodeGroup ? nodeGroup.dataset.id : null;
+    if (id !== hoveredNode) {
+      hoveredNode = id;
+      applyHoverState(id);
+    }
+  });
+  svg.addEventListener("pointerleave", () => {
+    if (hoveredNode !== null) {
+      hoveredNode = null;
+      applyHoverState(null);
+    }
+  });
+
   svg.addEventListener(
     "wheel",
     (e) => {
