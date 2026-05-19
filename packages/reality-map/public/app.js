@@ -1749,20 +1749,7 @@
       return;
     }
 
-    const s = data.summary;
-
-    summary.innerHTML = [
-      chip(`${s.total} packages`),
-      s.safe       ? chip(`${s.safe} safe`,       "var(--emerald)") : "",
-      s.mediumRisk ? chip(`${s.mediumRisk} medium`, "var(--amber)")  : "",
-      s.highRisk   ? chip(`${s.highRisk} high risk`, "var(--rose)")  : "",
-      s.critical   ? chip(`${s.critical} critical`, "var(--rose)")   : "",
-      s.unused     ? chip(`${s.unused} unused`,     "var(--muted)")  : "",
-      s.deprecated ? chip(`${s.deprecated} deprecated`, "oklch(0.72 0.19 295)") : "",
-      s.outdated   ? chip(`${s.outdated} outdated`, "var(--muted)")  : "",
-    ].join("");
-
-    // Ecosystem warnings
+    // Ecosystem warnings (not affected by filters — repo-level detection)
     if (data.ecosystemWarnings?.length) {
       ecosystem.hidden = false;
       ecosystem.innerHTML = data.ecosystemWarnings.map(w => `
@@ -1782,32 +1769,49 @@
       auditNotice.hidden = true;
     }
 
-    // Filter + render table
-    function applyFilters() {
-      const q        = (document.getElementById("deps-filter")?.value || "").toLowerCase();
-      const riskF    = document.getElementById("deps-risk-filter")?.value || "";
-      const typeF    = document.getElementById("deps-type-filter")?.value || "";
-      const sevOrder = ["low", "moderate", "high", "critical"];
+    const sevOrder = ["low", "moderate", "high", "critical"];
 
-      const filtered = data.packages.filter(p => {
-        if (q && !p.name.toLowerCase().includes(q)) return false;
-        if (typeF && p.type !== typeF) return false;
-        if (riskF === "critical")   return p.vulnerabilities.some(v => v.severity === "critical");
-        if (riskF === "high")       return p.vulnerabilities.some(v => sevOrder.indexOf(v.severity) >= 2);
-        if (riskF === "risky")      return p.riskScore >= 3;
-        if (riskF === "unused")     return p.isUnused;
-        if (riskF === "deprecated") return p.isDeprecated;
-        if (riskF === "outdated")   return p.outdatedSeverity != null;
-        return true;
-      });
+    function clientSummary(pkgs) {
+      let critical = 0, high = 0, moderate = 0, low = 0;
+      for (const pkg of pkgs) {
+        for (const v of pkg.vulnerabilities) {
+          if (v.severity === "critical") critical++;
+          else if (v.severity === "high") high++;
+          else if (v.severity === "moderate" || v.severity === "medium") moderate++;
+          else if (v.severity === "low") low++;
+        }
+      }
+      return {
+        total:      pkgs.length,
+        safe:       pkgs.filter(p => p.riskScore < 3 && !p.isUnused && !p.isDeprecated).length,
+        mediumRisk: pkgs.filter(p => p.riskScore >= 3 && p.riskScore < 6).length,
+        highRisk:   pkgs.filter(p => p.riskScore >= 6).length,
+        critical, high, moderate, low,
+        unused:     pkgs.filter(p => p.isUnused).length,
+        deprecated: pkgs.filter(p => p.isDeprecated).length,
+        outdated:   pkgs.filter(p => p.outdatedInfo && p.outdatedInfo.current !== p.outdatedInfo.latest).length,
+      };
+    }
 
-      tbody.innerHTML = "";
-      if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">No packages match filters.</td></tr>`;
+    function matchesPkg(p, q, riskF, typeF) {
+      if (q && !p.name.toLowerCase().includes(q)) return false;
+      if (typeF && p.type !== typeF) return false;
+      if (riskF === "critical")   return p.vulnerabilities.some(v => v.severity === "critical");
+      if (riskF === "high")       return p.vulnerabilities.some(v => sevOrder.indexOf(v.severity) >= 2);
+      if (riskF === "risky")      return p.riskScore >= 3;
+      if (riskF === "unused")     return p.isUnused;
+      if (riskF === "deprecated") return p.isDeprecated;
+      if (riskF === "outdated")   return p.outdatedSeverity != null;
+      return true;
+    }
+
+    function renderPkgRows(pkgs, tbodyEl) {
+      tbodyEl.innerHTML = "";
+      if (!pkgs.length) {
+        tbodyEl.innerHTML = `<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">No packages match filters.</td></tr>`;
         return;
       }
-
-      filtered.forEach(pkg => {
+      pkgs.forEach(pkg => {
         const tr = document.createElement("tr");
         tr.style.cursor = "pointer";
         const versionColor = pkg.outdatedSeverity === "major" ? "var(--amber)" : pkg.outdatedSeverity ? "var(--muted)" : null;
@@ -1817,7 +1821,6 @@
         const importStr = pkg.importCount > 0
           ? `<span style="color:var(--cyan)">${pkg.importCount}</span>`
           : `<span style="color:var(--muted)">0</span>`;
-
         tr.innerHTML = `
           <td style="font-weight:500">${pkg.name}</td>
           <td style="color:var(--muted);font-size:11px">${pkg.type === "devDep" ? "dev" : "dep"}</td>
@@ -1827,36 +1830,17 @@
           <td style="white-space:nowrap">${depsStatusBadges(pkg) || '<span style="color:var(--muted);font-size:10px">safe</span>'}</td>
         `;
         tr.addEventListener("click", () => openPkgDrawer(pkg));
-        tbody.appendChild(tr);
+        tbodyEl.appendChild(tr);
       });
     }
 
-    applyFilters();
-
-    // Wire filters once
-    if (!document.getElementById("deps-filter")?._rmBound) {
-      const dF = document.getElementById("deps-filter");
-      const rF = document.getElementById("deps-risk-filter");
-      const tF = document.getElementById("deps-type-filter");
-      if (dF) { dF.addEventListener("input", applyFilters); dF._rmBound = true; }
-      if (rF) { rF.addEventListener("change", applyFilters); }
-      if (tF) { tF.addEventListener("change", applyFilters); }
-    }
-
-    // ── Subpackage breakdown ─────────────────────────────────────
-    const subContainer = document.getElementById("deps-subpackages");
-    if (!subContainer) return;
-
-    const subPackages = data.subPackages || [];
-    if (!subPackages.length) { subContainer.innerHTML = ""; return; }
-
     function renderSubPkgTable(pkgs, containerId) {
-      const rows = pkgs.map(pkg => {
+      const rows = pkgs.map((pkg, idx) => {
         const versionColor = pkg.outdatedSeverity === "major" ? "var(--amber)" : pkg.outdatedSeverity ? "var(--muted)" : null;
         const versionStr = versionColor
           ? `<span style="color:${versionColor}">${pkg.installedVersion || pkg.declaredRange}</span>`
           : `<span>${pkg.installedVersion || pkg.declaredRange || "—"}</span>`;
-        return `<tr style="cursor:pointer" data-pkg-idx="${pkgs.indexOf(pkg)}" data-container="${containerId}">
+        return `<tr style="cursor:pointer" data-pkg-idx="${idx}" data-container="${containerId}">
           <td style="font-weight:500">${pkg.name}</td>
           <td style="color:var(--muted);font-size:11px">${pkg.type === "devDep" ? "dev" : "dep"}</td>
           <td class="mono">${versionStr}</td>
@@ -1873,44 +1857,102 @@
       </div>`;
     }
 
-    subContainer.innerHTML = `
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:14px">Subpackages (${subPackages.length})</div>
-      ${subPackages.map((sp, i) => {
-        const s = sp.summary || {};
-        const chips = [
-          `<span style="font-size:10px;color:var(--muted)">${s.total || 0} pkgs</span>`,
-          s.unused     ? `<span style="font-size:10px;color:var(--muted)">${s.unused} unused</span>` : "",
-          s.outdated   ? `<span style="font-size:10px;color:var(--amber)">${s.outdated} outdated</span>` : "",
-          s.highRisk   ? `<span style="font-size:10px;color:var(--rose)">${s.highRisk} high risk</span>` : "",
-          s.critical   ? `<span style="font-size:10px;color:var(--rose)">${s.critical} critical</span>` : "",
-        ].filter(Boolean).join(" · ");
+    // ── Centralized filter: updates summary, root table, and all subpackages ──
+    function applyFilters() {
+      const q     = (document.getElementById("deps-filter")?.value || "").toLowerCase();
+      const riskF = document.getElementById("deps-risk-filter")?.value || "";
+      const typeF = document.getElementById("deps-type-filter")?.value || "";
+      const hasFilter = q || riskF || typeF;
 
-        const tableId = `sub-tbl-${i}`;
-        return `<details style="margin-bottom:10px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
-          <summary style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;list-style:none;background:var(--surface)">
-            <span style="font-weight:600;font-size:13px">${sp.name}</span>
-            <span style="color:var(--muted);font-size:11px">${sp.relPath}</span>
-            <span style="margin-left:auto;font-size:11px;color:var(--muted)">${chips}</span>
-          </summary>
-          <div style="padding:0 0 8px">
-            ${sp.packages && sp.packages.length
-              ? renderSubPkgTable(sp.packages, tableId)
-              : `<div style="padding:16px;color:var(--muted);font-size:12px">No dependencies declared.</div>`}
-          </div>
-        </details>`;
-      }).join("")}
-    `;
+      // Filter root packages
+      const filteredRoot = data.packages.filter(p => matchesPkg(p, q, riskF, typeF));
 
-    // Wire click handlers for subpackage rows
-    subContainer.querySelectorAll("tr[data-pkg-idx]").forEach(tr => {
-      tr.addEventListener("click", () => {
-        const spIdx = [...subContainer.querySelectorAll("details")].indexOf(tr.closest("details"));
-        const pkgIdx = Number(tr.dataset.pkgIdx);
-        if (spIdx >= 0 && subPackages[spIdx]) {
-          openPkgDrawer(subPackages[spIdx].packages[pkgIdx]);
-        }
+      // Filter each subpackage's packages
+      const subPackages = data.subPackages || [];
+      const filteredSubs = subPackages.map(sp => ({
+        ...sp,
+        filteredPkgs: (sp.packages || []).filter(p => matchesPkg(p, q, riskF, typeF)),
+      }));
+
+      // Aggregate all filtered packages for the Repository Overview
+      const allFiltered = [
+        ...filteredRoot,
+        ...filteredSubs.flatMap(sp => sp.filteredPkgs),
+      ];
+      const repoSummary = clientSummary(allFiltered);
+
+      // Update Repository Overview summary chips
+      summary.innerHTML = [
+        chip(`${repoSummary.total} packages`),
+        repoSummary.safe       ? chip(`${repoSummary.safe} safe`,              "var(--emerald)")        : "",
+        repoSummary.mediumRisk ? chip(`${repoSummary.mediumRisk} medium`,      "var(--amber)")          : "",
+        repoSummary.highRisk   ? chip(`${repoSummary.highRisk} high risk`,     "var(--rose)")           : "",
+        repoSummary.critical   ? chip(`${repoSummary.critical} critical`,      "var(--rose)")           : "",
+        repoSummary.unused     ? chip(`${repoSummary.unused} unused`,          "var(--muted)")          : "",
+        repoSummary.deprecated ? chip(`${repoSummary.deprecated} deprecated`,  "oklch(0.72 0.19 295)") : "",
+        repoSummary.outdated   ? chip(`${repoSummary.outdated} outdated`,      "var(--muted)")          : "",
+      ].join("");
+
+      // Render root package table
+      renderPkgRows(filteredRoot, tbody);
+
+      // ── Workspace Packages breakdown ─────────────────────────────
+      const subContainer = document.getElementById("deps-subpackages");
+      if (!subContainer) return;
+
+      if (!filteredSubs.length) { subContainer.innerHTML = ""; return; }
+
+      subContainer.innerHTML = `
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:14px">Workspace Packages (${filteredSubs.length})</div>
+        ${filteredSubs.map((sp, i) => {
+          const s = clientSummary(sp.filteredPkgs);
+          const chips = [
+            `<span style="font-size:10px;color:var(--muted)">${s.total}${hasFilter ? " matched" : " pkgs"}</span>`,
+            s.unused     ? `<span style="font-size:10px;color:var(--muted)">${s.unused} unused</span>`       : "",
+            s.outdated   ? `<span style="font-size:10px;color:var(--amber)">${s.outdated} outdated</span>`   : "",
+            s.highRisk   ? `<span style="font-size:10px;color:var(--rose)">${s.highRisk} high risk</span>`   : "",
+            s.critical   ? `<span style="font-size:10px;color:var(--rose)">${s.critical} critical</span>`    : "",
+          ].filter(Boolean).join(" · ");
+
+          const tableId = `sub-tbl-${i}`;
+          return `<details style="margin-bottom:10px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+            <summary style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;list-style:none;background:var(--surface)">
+              <span style="font-weight:600;font-size:13px">${sp.name}</span>
+              <span style="color:var(--muted);font-size:11px">${sp.relPath}</span>
+              <span style="margin-left:auto;font-size:11px;color:var(--muted)">${chips}</span>
+            </summary>
+            <div style="padding:0 0 8px">
+              ${sp.filteredPkgs.length
+                ? renderSubPkgTable(sp.filteredPkgs, tableId)
+                : `<div style="padding:16px;color:var(--muted);font-size:12px">${hasFilter ? "No packages match filters." : "No dependencies declared."}</div>`}
+            </div>
+          </details>`;
+        }).join("")}
+      `;
+
+      // Wire click handlers for subpackage rows
+      subContainer.querySelectorAll("tr[data-pkg-idx]").forEach(tr => {
+        tr.addEventListener("click", () => {
+          const spIdx  = [...subContainer.querySelectorAll("details")].indexOf(tr.closest("details"));
+          const pkgIdx = Number(tr.dataset.pkgIdx);
+          if (spIdx >= 0 && filteredSubs[spIdx]) {
+            openPkgDrawer(filteredSubs[spIdx].filteredPkgs[pkgIdx]);
+          }
+        });
       });
-    });
+    }
+
+    applyFilters();
+
+    // Wire filters once
+    if (!document.getElementById("deps-filter")?._rmBound) {
+      const dF = document.getElementById("deps-filter");
+      const rF = document.getElementById("deps-risk-filter");
+      const tF = document.getElementById("deps-type-filter");
+      if (dF) { dF.addEventListener("input", applyFilters); dF._rmBound = true; }
+      if (rF) { rF.addEventListener("change", applyFilters); }
+      if (tF) { tF.addEventListener("change", applyFilters); }
+    }
   }
 
   render();
