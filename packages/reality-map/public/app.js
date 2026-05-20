@@ -249,6 +249,11 @@
     document.querySelectorAll(".layout-btn").forEach((b) => {
       b.classList.toggle("active", b.dataset.layout === layout);
     });
+    if (layout === "server") {
+      lastFitKey = "";
+      render();
+      return;
+    }
     if (currentViewGraph) {
       const laid = applyLayout(currentViewGraph);
       currentViewGraph = laid;

@@ -63,6 +63,26 @@
           </div>
         </section>
         <section>
+          <h3>Map Visualization Modes</h3>
+          <p>Switch between views using the <strong>View</strong> dropdown to analyze different aspects of the codebase:</p>
+          <ul>
+            <li><strong>Architecture:</strong> The default view analyzing structural layout and design health.</li>
+            <li><strong>Activity (Git):</strong> Colors modules by how recently their files were modified to highlight churn:
+              <div class="legend-grid" style="margin-top: 6px; margin-bottom: 6px;">
+                <div class="legend-item"><span class="dot" style="background:#f43f5e"></span> <span>&lt; 1 week (High churn)</span></div>
+                <div class="legend-item"><span class="dot" style="background:#f59e0b"></span> <span>&lt; 4 weeks (Active)</span></div>
+                <div class="legend-item"><span class="dot" style="background:#10b981"></span> <span>Stable (Mature/Untouched)</span></div>
+              </div>
+            </li>
+            <li><strong>Blast Radius:</strong> Click a module to calculate downstream change impact (how modifications propagate through dependent modules):
+              <div class="legend-grid" style="margin-top: 6px; margin-bottom: 6px;">
+                <div class="legend-item"><span class="dot" style="background:#f43f5e"></span> <span>Target (Selected module)</span></div>
+                <div class="legend-item"><span class="dot" style="background:#f59e0b"></span> <span>Affected (Dependent modules)</span></div>
+              </div>
+            </li>
+          </ul>
+        </section>
+        <section>
           <h3>Common Problems</h3>
           <ul>
             <li><strong>🔄 Circular Dependency (Cycle):</strong> Module A needs B, and B needs A. It's like a "chicken and egg" problem that creates a tangled knot, making code fragile and hard to fix.</li>
