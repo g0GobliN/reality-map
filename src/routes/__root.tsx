@@ -9,7 +9,6 @@ import {
 } from "@tanstack/react-router";
 import { Analytics } from "@vercel/analytics/react";
 
-
 import appCss from "../styles.css?url";
 import logoUrl from "../img/logo.PNG";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -124,7 +123,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
         {children}
         <SiteCommandMenu />
         <Toaster richColors closeButton position="top-center" />
-        <Analytics />
+        {__VERCEL__ && <Analytics />}
         <Scripts />
       </body>
     </html>
