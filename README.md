@@ -14,6 +14,10 @@
 
 Most codebases grow faster than anyone can understand them. `reality-map` gives you an instant visual overview — modules, dependencies, cycles, coupling hubs — and lets you drill all the way down to individual files and functions.
 
+<p align="center">
+  <img src="src/img/ss/2D891534-ACC7-4327-B054-8240BE3013E5.PNG" alt="RealityMap Interactive 3D/Radial Dependency Map" width="850" />
+</p>
+
 ---
 
 ## Features
@@ -51,6 +55,10 @@ A live, zoomable graph of your entire project — modules, services, databases, 
 - Animated edges show import direction and weight
 - Cycle detection — circular dependencies highlighted in rose
 
+<p align="center">
+  <img src="src/img/ss/Screenshot%20from%202026-05-20%2011-44-26.png" alt="RealityMap Sub-dependency Graph" width="850" />
+</p>
+
 ### 🔍 Deep File Exploration
 
 - Click any module at max depth → side drawer opens with all files
@@ -83,6 +91,10 @@ Includes a **copy-ready README badge**:
 ![Health 87/100](https://img.shields.io/static/v1?label=health&message=87/100&color=brightgreen)
 ```
 
+<p align="center">
+  <img src="src/img/ss/Screenshot%20from%202026-05-20%2011-45-32.png" alt="RealityMap Codebase Health Dashboard" width="850" />
+</p>
+
 ### 🧹 Dead Code Detector
 
 Finds files that are probably unused — scored by confidence, not just "0 importers":
@@ -92,9 +104,17 @@ Finds files that are probably unused — scored by confidence, not just "0 impor
 - Confidence score based on multiple signals
 - Shows potential LOC savings
 
+<p align="center">
+  <img src="src/img/ss/Screenshot%20from%202026-05-20%2011-45-18.png" alt="RealityMap Dead Code Candidates" width="850" />
+</p>
+
 ### 📦 Dependency Intelligence _(new)_
 
 Full local analysis of your `package.json` — no registry upload, works offline after install.
+
+<p align="center">
+  <img src="src/img/ss/Screenshot%20from%202026-05-20%2011-45-01.png" alt="RealityMap Dependency Intelligence Dashboard" width="850" />
+</p>
 
 **Unused detection** — packages declared but never imported in source are flagged as `unused`. Packages only found in config files (`eslint.config.js`, `vite.config.ts`, etc.) are labelled `config-only` instead, which is a distinct and valid usage pattern.
 
