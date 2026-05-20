@@ -123,7 +123,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
         {children}
         <SiteCommandMenu />
         <Toaster richColors closeButton position="top-center" />
-        {import.meta.env.PROD && <Analytics />}
+        {__VERCEL__ && <Analytics />}
         <Scripts />
       </body>
     </html>

@@ -9,6 +9,7 @@ const { version } = JSON.parse(readFileSync("./package.json", "utf-8")) as { ver
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version),
+    __VERCEL__: JSON.stringify(process.env.VERCEL === "1"),
   },
   resolve: {
     tsconfigPaths: true,
