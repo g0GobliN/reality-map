@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="../../src/img/git_logo.PNG" alt="RealityMap Logo" width="420" />
+  <img src="https://raw.githubusercontent.com/g0GobliN/reality-map/main/src/img/git_logo.PNG" alt="RealityMap Logo" width="420" />
   <br/><br/>
   <strong>Visual architecture explorer for any JavaScript/TypeScript codebase. Zero config, zero upload, runs entirely local.</strong>
   <br/>
@@ -15,7 +15,7 @@
 Most codebases grow faster than anyone can understand them. `reality-map` gives you an instant visual overview — modules, dependencies, cycles, coupling hubs — and lets you drill all the way down to individual files and functions.
 
 <p align="center">
-  <img src="../../src/img/ss/2D891534-ACC7-4327-B054-8240BE3013E5.PNG" alt="RealityMap Interactive 3D/Radial Dependency Map" width="850" />
+  <img src="https://raw.githubusercontent.com/g0GobliN/reality-map/main/src/img/ss/2D891534-ACC7-4327-B054-8240BE3013E5.PNG" alt="RealityMap Interactive 3D/Radial Dependency Map" width="850" />
 </p>
 
 ---
@@ -56,7 +56,7 @@ A live, zoomable graph of your entire project — modules, services, databases, 
 - Cycle detection — circular dependencies highlighted in rose
 
 <p align="center">
-  <img src="../../src/img/ss/Screenshot%20from%202026-05-20%2011-44-26.png" alt="RealityMap Sub-dependency Graph" width="850" />
+  <img src="https://raw.githubusercontent.com/g0GobliN/reality-map/main/src/img/ss/Screenshot%20from%202026-05-20%2011-44-26.png" alt="RealityMap Sub-dependency Graph" width="850" />
 </p>
 
 ### 🔍 Deep File Exploration
@@ -92,7 +92,7 @@ Includes a **copy-ready README badge**:
 ```
 
 <p align="center">
-  <img src="../../src/img/ss/Screenshot%20from%202026-05-20%2011-45-32.png" alt="RealityMap Codebase Health Dashboard" width="850" />
+  <img src="https://raw.githubusercontent.com/g0GobliN/reality-map/main/src/img/ss/Screenshot%20from%202026-05-20%2011-45-32.png" alt="RealityMap Codebase Health Dashboard" width="850" />
 </p>
 
 ### 🧹 Dead Code Detector
@@ -105,7 +105,7 @@ Finds files that are probably unused — scored by confidence, not just "0 impor
 - Shows potential LOC savings
 
 <p align="center">
-  <img src="../../src/img/ss/Screenshot%20from%202026-05-20%2011-45-18.png" alt="RealityMap Dead Code Candidates" width="850" />
+  <img src="https://raw.githubusercontent.com/g0GobliN/reality-map/main/src/img/ss/Screenshot%20from%202026-05-20%2011-45-18.png" alt="RealityMap Dead Code Candidates" width="850" />
 </p>
 
 ### 📦 Dependency Intelligence _(new)_
@@ -113,7 +113,7 @@ Finds files that are probably unused — scored by confidence, not just "0 impor
 Full local analysis of your `package.json` — no registry upload, works offline after install.
 
 <p align="center">
-  <img src="../../src/img/ss/Screenshot%20from%202026-05-20%2011-45-01.png" alt="RealityMap Dependency Intelligence Dashboard" width="850" />
+  <img src="https://raw.githubusercontent.com/g0GobliN/reality-map/main/src/img/ss/Screenshot%20from%202026-05-20%2011-45-01.png" alt="RealityMap Dependency Intelligence Dashboard" width="850" />
 </p>
 
 **Unused detection** — packages declared but never imported in source are flagged as `unused`. Packages only found in config files (`eslint.config.js`, `vite.config.ts`, etc.) are labelled `config-only` instead, which is a distinct and valid usage pattern.
