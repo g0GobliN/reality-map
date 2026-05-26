@@ -308,4 +308,4 @@ Everything runs locally. No files, paths, or code are ever uploaded anywhere.
 
 ## License
 
-AGPL-3.0 © [Vishal Gurung](https://github.com/g0GobliN)
+MIT © [Vishal Gurung](https://github.com/g0GobliN)
