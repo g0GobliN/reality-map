@@ -123,7 +123,7 @@ function Hero() {
             <span className="text-gradient">AI-generated codebase.</span>
           </h1>
           <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-             RealityMap turns complex repositories into interactive visual architecture maps. See
+            RealityMap turns complex repositories into interactive visual architecture maps. See
             files, services, APIs and hidden dependencies — in motion, in seconds.
           </p>
 

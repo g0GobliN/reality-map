@@ -100,7 +100,9 @@ export function Nav() {
                   </button>
 
                   <div className="mt-6 border-t border-border pt-6">
-                    <div className="px-3 mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Connect here</div>
+                    <div className="px-3 mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                      Connect here
+                    </div>
                     <div className="flex flex-col gap-1">
                       <a
                         href="https://www.npmjs.com/package/reality-map"
