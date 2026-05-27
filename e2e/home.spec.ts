@@ -20,7 +20,7 @@ test.describe("Landing page", () => {
 
   test("renders the hero CTA buttons", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("button", { name: /Try local demo/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /npm install/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /View architecture/i })).toBeVisible();
   });
 
@@ -58,7 +58,7 @@ test.describe("Landing page", () => {
 
   test("scrolls smoothly to local-first section on CTA click", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: /Try local demo/i }).click();
+    await page.getByRole("button", { name: /Open live demo/i }).click();
     await expect(page.locator("#local-first")).toBeInViewport({ ratio: 0.3 });
   });
 });
