@@ -22,6 +22,8 @@ import {
   ShieldAlert,
   Trash2,
   TrendingDown,
+  Package,
+  Github,
 } from "lucide-react";
 import { Nav } from "@/components/Nav";
 import { Logo } from "@/components/Logo";
@@ -101,16 +103,27 @@ function Hero() {
       />
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-14 px-6 pt-20 pb-28 lg:grid-cols-12 lg:gap-10 lg:pt-28">
         <motion.div initial="hidden" animate="show" variants={fade} className="lg:col-span-5">
-          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border glass px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-            <Sparkles className="h-3 w-3 text-cyan" />v{__APP_VERSION__} · now with interactive
-            architecture graphs
+          <div className="mb-5 flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-full border border-border glass px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground animate-in fade-in slide-in-from-top-1 duration-500">
+              <Sparkles className="h-3 w-3 text-cyan" />v{__APP_VERSION__} · now with interactive
+              architecture graphs
+            </div>
+            <a
+              href="https://www.npmjs.com/package/reality-map"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border glass px-3 py-1 text-[11px] text-muted-foreground transition hover:border-cyan/50 hover:bg-surface-2 hover:text-foreground animate-in fade-in slide-in-from-top-1 duration-500 delay-100"
+            >
+              <Package className="h-3 w-3" />
+              npm package
+            </a>
           </div>
           <h1 className="text-balance text-5xl font-semibold leading-[1.05] tracking-tight md:text-6xl">
             Understand your <br />
             <span className="text-gradient">AI-generated codebase.</span>
           </h1>
           <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-            RealityMap turns complex repositories into interactive visual architecture maps. See
+             RealityMap turns complex repositories into interactive visual architecture maps. See
             files, services, APIs and hidden dependencies — in motion, in seconds.
           </p>
 
@@ -118,9 +131,17 @@ function Hero() {
             <Button
               type="button"
               className="h-11 rounded-lg bg-foreground px-5 text-background hover:bg-foreground/90"
-              onClick={() => scrollToSection("local-first")}
+              asChild
             >
-              Try local demo <ArrowRight className="ml-1.5 h-4 w-4" />
+              <a
+                href="https://www.npmjs.com/package/reality-map"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="flex items-center gap-2"
+              >
+                <Package className="h-4 w-4" />
+                <span>npm install</span>
+              </a>
             </Button>
             <Button
               type="button"

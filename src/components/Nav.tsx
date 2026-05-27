@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Logo } from "./Logo";
 import { Button } from "@/components/ui/button";
-import { Github, Menu, Search } from "lucide-react";
+import { Github, Menu, Search, Package, Instagram } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { openCommandPalette } from "@/lib/command-palette";
@@ -98,17 +98,70 @@ export function Nav() {
                   >
                     Command palette…
                   </button>
+
+                  <div className="mt-6 border-t border-border pt-6">
+                    <div className="px-3 mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Connect here</div>
+                    <div className="flex flex-col gap-1">
+                      <a
+                        href="https://www.npmjs.com/package/reality-map"
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        <Package className="h-4 w-4" />
+                        npm Package
+                      </a>
+                      <a
+                        href="https://github.com/g0GobliN/reality-map"
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        <Github className="h-4 w-4" /> GitHub Repository
+                      </a>
+                      <a
+                        href="https://instagram.com/gobblin01_"
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        <Instagram className="h-4 w-4" /> Instagram
+                      </a>
+                    </div>
+                  </div>
                 </nav>
               </SheetContent>
             </Sheet>
 
             <a
+              href="https://www.npmjs.com/package/reality-map"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="hidden sm:flex h-9 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground transition hover:text-foreground"
+            >
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">npm</span>
+            </a>
+            <a
               href="https://github.com/g0GobliN/reality-map"
               target="_blank"
               rel="noreferrer noopener"
-              className="hidden h-9 items-center gap-1.5 rounded-md px-3 text-sm text-muted-foreground transition hover:text-foreground sm:inline-flex"
+              className="hidden sm:flex h-9 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground transition hover:text-foreground"
             >
-              <Github className="h-4 w-4" /> Star
+              <Github className="h-4 w-4" />
+              <span className="hidden sm:inline">Star</span>
+            </a>
+            <a
+              href="https://instagram.com/gobblin01_"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="hidden sm:flex h-9 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground transition hover:text-foreground"
+            >
+              <Instagram className="h-4 w-4" />
+              <span className="hidden sm:inline">Instagram</span>
             </a>
             <Button
               type="button"
