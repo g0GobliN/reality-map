@@ -4,12 +4,17 @@
 const fs = require("fs");
 const path = require("path");
 
-const RESOLVE_EXTS = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"];
-const SRC_EXTS = new Set([".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"]);
+const RESOLVE_EXTS = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts", ".py", ".go", ".rs"];
+const SRC_EXTS = new Set([".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts", ".py", ".go", ".rs"]);
 
 const ENTRY_BASENAMES = new Set([
+  // JS/TS
   "index", "main", "start", "server", "router", "app", "App",
   "entry", "client", "bootstrap", "init",
+  // Python
+  "__main__", "wsgi", "asgi", "manage",
+  // Go / Rust
+  "lib",
 ]);
 
 function joinPosix(dir, rel) {
@@ -17,7 +22,7 @@ function joinPosix(dir, rel) {
   const out = [];
   for (const p of parts) {
     if (p === "..") out.pop();
-    else if (p !== ".") out.push(p);
+    else if (p !== "." && p !== "") out.push(p);
   }
   return out.join("/");
 }
@@ -60,6 +65,8 @@ function resolveRelativeSpec(fromFile, spec, fileSet) {
     base,
     ...RESOLVE_EXTS.map((e) => base + e),
     ...RESOLVE_EXTS.map((e) => base + "/index" + e),
+    base + "/__init__.py",
+    base + "/mod.rs",
   ];
   for (const c of candidates) if (fileSet.has(c)) return c;
   return null;
@@ -88,16 +95,24 @@ function resolveSpec(fromFile, spec, fileSet, aliases) {
   return null;
 }
 
-function buildImporterCounts(allFiles, importsMap, fileSet, aliases) {
+function buildImporterCounts(allFiles, importsMap, fileSet, aliases, resolvedEdgesMap) {
   const counts = new Map();
   for (const f of allFiles) counts.set(f, 0);
-  for (const file of allFiles) {
-    const data = importsMap[file];
-    if (!data) continue;
-    for (const spec of data.specs || []) {
-      const resolved = resolveSpec(file, spec, fileSet, aliases);
-      if (resolved && resolved !== file) {
-        counts.set(resolved, (counts.get(resolved) || 0) + 1);
+  if (resolvedEdgesMap) {
+    for (const [, targets] of Object.entries(resolvedEdgesMap)) {
+      for (const tgt of targets) {
+        if (counts.has(tgt)) counts.set(tgt, (counts.get(tgt) || 0) + 1);
+      }
+    }
+  } else {
+    for (const file of allFiles) {
+      const data = importsMap[file];
+      if (!data) continue;
+      for (const spec of data.specs || []) {
+        const resolved = resolveSpec(file, spec, fileSet, aliases);
+        if (resolved && resolved !== file) {
+          counts.set(resolved, (counts.get(resolved) || 0) + 1);
+        }
       }
     }
   }
@@ -108,18 +123,24 @@ function buildImporterCounts(allFiles, importsMap, fileSet, aliases) {
  * Walk the import graph starting from all seed files simultaneously.
  * Follows both relative imports and path aliases.
  */
-function collectReachableFromSeeds(seeds, importsMap, fileSet, aliases) {
+function collectReachableFromSeeds(seeds, importsMap, fileSet, aliases, resolvedEdgesMap) {
   const reachable = new Set();
   const stack = [...seeds];
   while (stack.length) {
     const file = stack.pop();
     if (reachable.has(file)) continue;
     reachable.add(file);
-    const data = importsMap[file];
-    if (!data) continue;
-    for (const spec of data.specs || []) {
-      const resolved = resolveSpec(file, spec, fileSet, aliases);
-      if (resolved && !reachable.has(resolved)) stack.push(resolved);
+    if (resolvedEdgesMap) {
+      for (const tgt of (resolvedEdgesMap[file] || [])) {
+        if (!reachable.has(tgt)) stack.push(tgt);
+      }
+    } else {
+      const data = importsMap[file];
+      if (!data) continue;
+      for (const spec of data.specs || []) {
+        const resolved = resolveSpec(file, spec, fileSet, aliases);
+        if (resolved && !reachable.has(resolved)) stack.push(resolved);
+      }
     }
   }
   return reachable;
@@ -185,7 +206,9 @@ function buildUnreachableReport(scan, srcDir, root) {
     };
   }
 
-  const importerCounts = buildImporterCounts(allFiles, importsMap, fileSet, aliases);
+  const resolvedEdgesMap = (scan.fileDetails || {}).resolvedEdges || null;
+
+  const importerCounts = buildImporterCounts(allFiles, importsMap, fileSet, aliases, resolvedEdgesMap);
 
   // Seed set: named entries in srcDir + zero-importer files outside srcDir.
   const seedSet = new Set();
@@ -198,7 +221,7 @@ function buildUnreachableReport(scan, srcDir, root) {
     if (isNamedEntry(f, srcDirNorm)) seedSet.add(f);
   }
 
-  const reachable = collectReachableFromSeeds([...seedSet], importsMap, fileSet, aliases);
+  const reachable = collectReachableFromSeeds([...seedSet], importsMap, fileSet, aliases, resolvedEdgesMap);
 
   const unreachable = [];
   for (const file of srcFiles) {
