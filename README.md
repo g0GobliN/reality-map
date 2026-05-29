@@ -30,22 +30,23 @@ A live, zoomable graph of your entire project — modules, services, databases, 
 
 - **Edge focus mode** — hover any node to highlight its connected edges; unrelated edges drop to near-invisible
 - **Path highlighting** — click a node to lock focus; its neighbours glow, everything else fades to 20% opacity; click again or click the canvas to deselect
-- **Edge filtering** — toggle edge groups by colour/type (`web`, `api`, `infra`, `cycle`) to isolate signal from noise; at least one group always stays active
+- **Edge filtering** — toggle edge views: `all` (everything), `warn` (edges touching circular-dep modules), `hot` (edges with ≥ 3 imports), `clean` (no warnings and lightweight); at least one filter always stays active
 
 **Phase 2 · Clustering**
 
-- **Domain clusters** — nodes are grouped into logical layers (`web layer`, `api layer`, `infra layer`), each shown with a translucent group background
-- **Collapse & expand** — click a cluster toggle pill or the cluster node itself to collapse the entire group into a single summary card; inter-cluster edges auto-reroute and deduplicate
-- **Cluster metrics** — each collapsed cluster card shows aggregated file count and warning count; the top HUD shows how many clusters are currently collapsed
+- **Domain clusters** — nodes are auto-grouped by top-level path segment (e.g. `src`, `lib`, `api`), each shown with a translucent group background
+- **Collapse & expand** — click a cluster toggle pill to collapse the group into a single summary card; inter-cluster edges auto-reroute and deduplicate; click the card to expand again
+- **Cluster focus** — click a cluster pill a second time to isolate just that cluster's nodes; click again to return to the full graph
+- **Cluster metrics** — each collapsed cluster card shows aggregated module count and warning count
 
 **Phase 3 · Layouts & Abstraction**
 
 - **Multiple layouts** — switch between three named arrangements:
-  - `layered` — left-to-right tier layout (default, shows group backgrounds)
+  - `server` — server-computed positions (default, preserves module hierarchy)
   - `radial` — nodes arranged evenly around a circle
   - `force` — organic scatter with cluster proximity preserved
 - **Smooth transitions** — switching layouts or toggling clusters triggers an animated `fitView` so context is never lost
-- **Zoom-based abstraction** — zoom out past ~50% and all clusters auto-collapse into summary nodes; the HUD switches to "abstracted · zoom in to expand"; zooming back in restores the full graph
+- **Persistent layout** — your last-used layout is saved in `localStorage` and restored on next open
 
 **Core graph features**
 
@@ -95,7 +96,7 @@ Includes a **copy-ready README badge**:
   <img src="src/img/ss/Screenshot%20from%202026-05-20%2011-45-32.png" alt="RealityMap Codebase Health Dashboard" width="850" />
 </p>
 
-### 🧹 Dead Code Detector
+### 🧹 Dead Code & Unreachable File Detection
 
 Finds files that are probably unused — scored by confidence, not just "0 importers":
 
@@ -103,6 +104,18 @@ Finds files that are probably unused — scored by confidence, not just "0 impor
 - Not an entry point, test, or config file
 - Confidence score based on multiple signals
 - Shows potential LOC savings
+
+**Unreachable file analysis** — traces which source files can never be reached from your named entry points (e.g. `src/index.ts`, `src/main.ts`) via any import path. Complements dead code detection with graph-traversal certainty instead of heuristics.
+
+```bash
+# Report unreachable files in src/ from entry points
+npx reality-map --unreachable-files src
+
+# Output as JSON (for CI / scripting)
+npx reality-map --unreachable-files-json src
+```
+
+The UI dead code panel merges both signals — confirmed dead-code candidates and graph-unreachable files — sorted by severity.
 
 <p align="center">
   <img src="src/img/ss/Screenshot%20from%202026-05-20%2011-45-18.png" alt="RealityMap Dead Code Candidates" width="850" />
@@ -252,6 +265,7 @@ The local server exposes a REST API you can use in scripts:
 | `/api/health`        | GET    | Health score (0–100)                                           |
 | `/api/impact`        | POST   | Change impact — body: `{ "paths": ["src/foo.ts"] }`            |
 | `/api/deadcode`      | GET    | Dead code candidates                                           |
+| `/api/unreachable?src=<dir>` | GET | Files unreachable from entry points in `<dir>`            |
 | `/api/deps`          | GET    | Dependency intelligence — unused, vulns, outdated, risk scores |
 | `/api/search?q=`     | GET    | File search                                                    |
 | `/api/file/:path`    | GET    | File symbols + imports                                         |
