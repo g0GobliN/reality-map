@@ -13,7 +13,6 @@ import {
   Workflow,
   FileWarning,
   Wand2,
-  Clock,
   Eye,
   MousePointer2,
   Map as MapIcon,
@@ -340,86 +339,6 @@ function VisualizationSection() {
   );
 }
 
-function Heatmap() {
-  // 16x8 grid heatmap
-  const cells = Array.from({ length: 16 * 8 }, (_, i) => {
-    const x = i % 16,
-      y = Math.floor(i / 16);
-    const noise = Math.sin(x * 0.7) * Math.cos(y * 0.9) + Math.sin((x + y) * 0.4);
-    const v = (noise + 1.5) / 3; // 0..1
-    return v;
-  });
-  return (
-    <Section
-      id="heatmap"
-      eyebrow="AI complexity heatmap"
-      title={
-        <>
-          See where the code <span className="text-gradient">gets dangerous.</span>
-        </>
-      }
-      sub="Cyclomatic complexity, churn and AI-cluster density — surfaced as colors, not buried in CI."
-    >
-      <div className="glass-strong relative overflow-hidden rounded-2xl p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-          <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-rose" />
-            <span className="text-sm font-medium">complexity_map.json</span>
-            <span className="font-mono text-[11px] text-muted-foreground">· src/**</span>
-          </div>
-          <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
-            <span className="h-2 w-6 rounded bg-emerald" /> low
-            <span className="h-2 w-6 rounded bg-amber" /> warm
-            <span className="h-2 w-6 rounded bg-rose" /> hot
-          </div>
-        </div>
-        <div
-          className="mt-6 grid grid-cols-16 gap-1.5"
-          style={{ gridTemplateColumns: "repeat(16, minmax(0, 1fr))" }}
-        >
-          {cells.map((v, i) => {
-            const color =
-              v > 0.78
-                ? "bg-rose"
-                : v > 0.6
-                  ? "bg-amber"
-                  : v > 0.4
-                    ? "bg-cyan/70"
-                    : v > 0.25
-                      ? "bg-cyan/30"
-                      : "bg-surface-2";
-            return (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, scale: 0.6 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.004, duration: 0.4 }}
-                className={`aspect-square rounded-md ${color} ring-1 ring-border/50`}
-                style={{ filter: v > 0.7 ? `drop-shadow(0 0 8px var(--rose))` : undefined }}
-              />
-            );
-          })}
-        </div>
-        <div className="mt-6 grid grid-cols-1 gap-4 border-t border-border pt-5 md:grid-cols-3">
-          {[
-            { k: "ai-clusters/payment-flow", v: "complexity 9.2", tone: "rose" },
-            { k: "auth/session-rotate", v: "complexity 7.8", tone: "amber" },
-            { k: "ui/components/forms", v: "duplication 41%", tone: "amber" },
-          ].map((r) => (
-            <div
-              key={r.k}
-              className="flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2 font-mono text-[12px]"
-            >
-              <span className="truncate text-muted-foreground">{r.k}</span>
-              <span className={`text-${r.tone}`}>{r.v}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </Section>
-  );
-}
 
 function CircularSection() {
   return (
@@ -487,19 +406,19 @@ function CircularSection() {
               <AlertTriangle className="h-3.5 w-3.5" /> cycle detected · 4 files
             </div>
             <div className="absolute right-4 bottom-4 inline-flex items-center gap-2 rounded-md glass px-2.5 py-1 font-mono text-[11px] text-muted-foreground">
-              <RotateCw className="h-3.5 w-3.5" /> auto-resolved suggestion ready
+              <RotateCw className="h-3.5 w-3.5" /> cycle highlighted in rose
             </div>
           </div>
         </div>
         <div className="col-span-12 space-y-3 lg:col-span-5">
           {[
-            { t: "Real-time scanner", d: "Re-scans on save with incremental graph diffs." },
+            { t: "Real-time scanner", d: "Re-scan on demand or with --watch; the graph updates live in the browser." },
             {
-              t: "Exact-line traces",
-              d: "Click an edge — jump to the import that closed the loop.",
+              t: "Edge-level visibility",
+              d: "Hover any node to highlight its edges. Click to lock focus — neighbours glow, everything else fades.",
             },
-            { t: "Refactor proposals", d: "Suggested seam to break the cycle, generated locally." },
-            { t: "CI integration", d: "Fail builds on new cycles, not on legacy debt." },
+            { t: "Cycle list panel", d: "All detected cycles listed by file. Click a cycle entry to highlight the ring in the graph." },
+            { t: "CI integration", d: "Pass --fail-on-cycles to exit 1 on any new circular dependency. Safe for legacy debt — fails only when cycles grow." },
           ].map((f) => (
             <div key={f.t} className="glass rounded-xl p-5">
               <div className="text-sm font-medium">{f.t}</div>
@@ -512,68 +431,6 @@ function CircularSection() {
   );
 }
 
-function EvolutionSection() {
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
-  const data = [12, 18, 26, 31, 44, 58, 72, 96, 121, 158];
-  const max = Math.max(...data);
-  return (
-    <Section
-      id="changelog"
-      eyebrow="Time evolution"
-      title={
-        <>
-          Watch your codebase <span className="text-gradient">grow up.</span>
-        </>
-      }
-      sub="Replay architecture history week by week. See when complexity spiked, who shipped it, and what it touched."
-    >
-      <div className="glass-strong rounded-2xl p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-cyan" />
-            <span className="text-sm font-medium">timeline · 2025</span>
-          </div>
-          <div className="font-mono text-[11px] text-muted-foreground">modules over time</div>
-        </div>
-        <div className="mt-6 grid grid-cols-10 items-end gap-3 h-56">
-          {data.map((v, i) => (
-            <motion.div
-              key={i}
-              initial={{ height: 0, opacity: 0 }}
-              whileInView={{ height: `${(v / max) * 100}%`, opacity: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: i * 0.05 }}
-              className="relative w-full rounded-md bg-linear-to-t from-cyan/30 to-violet/60 ring-1 ring-border"
-              style={{
-                filter: i >= 7 ? "drop-shadow(0 0 12px oklch(0.72 0.19 295 / 0.45))" : undefined,
-              }}
-            >
-              <div className="absolute -top-6 left-1/2 -translate-x-1/2 font-mono text-[10px] text-muted-foreground">
-                {v}
-              </div>
-            </motion.div>
-          ))}
-        </div>
-        <div className="mt-2 grid grid-cols-10 gap-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          {months.map((m) => (
-            <div key={m} className="text-center">
-              {m}
-            </div>
-          ))}
-        </div>
-        <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-border pt-4 font-mono text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-violet" /> AI-generated commits +312%
-          </span>
-          <span className="mx-2">·</span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-rose" /> complexity x4 since Jul
-          </span>
-        </div>
-      </div>
-    </Section>
-  );
-}
 
 function LocalFirst() {
   return (
@@ -912,9 +769,7 @@ function Landing() {
         <Hero />
         <ProblemSection />
         <VisualizationSection />
-        <Heatmap />
         <CircularSection />
-        <EvolutionSection />
         <DependencySection />
         <LocalFirst />
         <FinalCTA />
