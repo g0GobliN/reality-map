@@ -259,18 +259,18 @@ legacy/
 
 The local server exposes a REST API you can use in scripts:
 
-| Endpoint             | Method | Description                                                    |
-| -------------------- | ------ | -------------------------------------------------------------- |
-| `/api/graph`         | GET    | Full scan data                                                 |
-| `/api/health`        | GET    | Health score (0–100)                                           |
-| `/api/impact`        | POST   | Change impact — body: `{ "paths": ["src/foo.ts"] }`            |
-| `/api/deadcode`      | GET    | Dead code candidates                                           |
-| `/api/unreachable?src=<dir>` | GET | Files unreachable from entry points in `<dir>`            |
-| `/api/deps`          | GET    | Dependency intelligence — unused, vulns, outdated, risk scores |
-| `/api/search?q=`     | GET    | File search                                                    |
-| `/api/file/:path`    | GET    | File symbols + imports                                         |
-| `/api/rescan`        | POST   | Re-scan project                                                |
-| `/api/snapshot.html` | GET    | Download self-contained HTML snapshot                          |
+| Endpoint                     | Method | Description                                                    |
+| ---------------------------- | ------ | -------------------------------------------------------------- |
+| `/api/graph`                 | GET    | Full scan data                                                 |
+| `/api/health`                | GET    | Health score (0–100)                                           |
+| `/api/impact`                | POST   | Change impact — body: `{ "paths": ["src/foo.ts"] }`            |
+| `/api/deadcode`              | GET    | Dead code candidates                                           |
+| `/api/unreachable?src=<dir>` | GET    | Files unreachable from entry points in `<dir>`                 |
+| `/api/deps`                  | GET    | Dependency intelligence — unused, vulns, outdated, risk scores |
+| `/api/search?q=`             | GET    | File search                                                    |
+| `/api/file/:path`            | GET    | File symbols + imports                                         |
+| `/api/rescan`                | POST   | Re-scan project                                                |
+| `/api/snapshot.html`         | GET    | Download self-contained HTML snapshot                          |
 
 ---
 
