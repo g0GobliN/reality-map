@@ -51,7 +51,8 @@ A live, zoomable graph of your entire project — modules, services, databases, 
 **Core graph features**
 
 - Module-level graph with configurable depth (1–5)
-- Click any module to drill in — see sub-modules, then files, then symbols
+- **Hierarchical layout at depth 2+** — nodes are grouped into horizontal strips by top-level folder (`src/`, `packages/`, etc.) so the visual hierarchy always matches your directory tree; depth 1 shows only top-level folders as single nodes
+- **Double-click to drill in** — zoom into any module to see its sub-modules, then files, then symbols; use **Back** to navigate back up
 - Drag nodes to rearrange, pan and zoom freely
 - Animated edges show import direction and weight
 - Cycle detection — circular dependencies highlighted in rose
@@ -180,6 +181,7 @@ npx reality-map --deps --fail-on-vuln high
 - Most imported files (your critical shared code)
 - Coupling hubs (high fan-in AND fan-out)
 - Files with no internal importers (potential entry points or dead code)
+- **Directory architecture** — per-folder breakdown of file count, LOC, inbound/outbound cross-folder edges, and coupling % (cross-directory edges ÷ all edges for that folder); plus a dependency flow table showing which folders import from which
 
 ### 🔎 Global Search
 
