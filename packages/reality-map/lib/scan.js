@@ -471,11 +471,11 @@ function moduleOf(rel, depth) {
   const d = Math.max(1, Number(depth || 1));
 
   if (dirs[0] === "src") {
-    const segs = dirs.slice(1, 1 + d);
+    const segs = dirs.slice(1, d);
     return segs.length ? "src/" + segs.join("/") : "src";
   }
   if (dirs[0] === "app") {
-    const segs = dirs.slice(1, 1 + d);
+    const segs = dirs.slice(1, d);
     return segs.length ? "app/" + segs.join("/") : "app";
   }
 
@@ -594,7 +594,68 @@ function buildInsights(root, files, fileEdges, fileLoc, externalCounts) {
     externalPackages: [...externalCounts.entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([name, count]) => ({ name, count })),
+    dirStats: buildDirStats(files, fileEdges, fileLoc, rel),
   };
+}
+
+function buildDirStats(files, fileEdges, fileLoc, rel) {
+  const dirOf = (f) => {
+    const r = rel(f);
+    const idx = r.lastIndexOf("/");
+    return idx === -1 ? "." : r.slice(0, idx);
+  };
+
+  const locMap   = new Map();
+  const countMap = new Map();
+  for (const f of files) {
+    const d = dirOf(f);
+    locMap.set(d, (locMap.get(d) || 0) + (fileLoc.get(f) || 0));
+    countMap.set(d, (countMap.get(d) || 0) + 1);
+  }
+
+  const inbound  = new Map();
+  const outbound = new Map();
+  const internal = new Map();
+  const flowMap  = new Map(); // "srcDir→dstDir" → count
+
+  for (const [a, b] of fileEdges) {
+    const da = dirOf(a), db = dirOf(b);
+    if (da === db) {
+      internal.set(da, (internal.get(da) || 0) + 1);
+    } else {
+      outbound.set(da, (outbound.get(da) || 0) + 1);
+      inbound.set(db, (inbound.get(db) || 0) + 1);
+      const key = `${da}||${db}`;
+      flowMap.set(key, (flowMap.get(key) || 0) + 1);
+    }
+  }
+
+  const dirs = [...countMap.keys()].sort();
+  const stats = dirs.map((d) => {
+    const inn = inbound.get(d)  || 0;
+    const out = outbound.get(d) || 0;
+    const int = internal.get(d) || 0;
+    const total = inn + out + int || 1;
+    return {
+      dir:      d,
+      files:    countMap.get(d),
+      loc:      locMap.get(d) || 0,
+      inbound:  inn,
+      outbound: out,
+      internal: int,
+      coupling: Math.round(((inn + out) / total) * 100),
+    };
+  }).sort((a, b) => b.loc - a.loc);
+
+  const flow = [...flowMap.entries()]
+    .map(([key, count]) => {
+      const [from, to] = key.split("||");
+      return { from, to, count };
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 40);
+
+  return { stats, flow };
 }
 
 function loadGoModuleName(root) {
@@ -815,9 +876,68 @@ async function scanProject(root, opts = {}) {
       fileIncoming.set(b, (fileIncoming.get(b) || 0) + 1);
     }
 
-    const sortedMods = [...modFiles.keys()].sort((a, b) => (fanIn.get(a) - fanIn.get(b)) || a.localeCompare(b));
-    const cols = 4;
-    const colW = 280, rowH = 150;
+    const topOf = (m) => m.split("/")[0];
+
+    const sortedMods = [...modFiles.keys()].sort((a, b) => {
+      if (depth > 1) {
+        const ta = topOf(a), tb = topOf(b);
+        if (ta !== tb) return ta.localeCompare(tb);
+        const da = a.split("/").length, db = b.split("/").length;
+        if (da !== db) return da - db;
+      }
+      return (fanIn.get(b) - fanIn.get(a)) || a.localeCompare(b);
+    });
+
+    const colW = 300, rowH = 160;
+    const modulePos = new Map();
+
+    if (depth > 1) {
+      // Each top-level group gets its own horizontal strip (row band).
+      // Singletons share the first strip. Multi-member groups each get
+      // their own strip so same-folder nodes are visually together.
+      const groupMap = new Map();
+      sortedMods.forEach((m) => {
+        const top = topOf(m);
+        if (!groupMap.has(top)) groupMap.set(top, []);
+        groupMap.get(top).push(m);
+      });
+
+      const singles = [];
+      const multis  = [];
+      groupMap.forEach((members) => {
+        if (members.length === 1) singles.push(members[0]);
+        else multis.push(members);
+      });
+
+      const STRIP_GAP     = 50;
+      const MAX_STRIP_ROWS = 4;  // target rows per strip
+      const MAX_STRIP_COLS = 8;  // hard cap on columns
+      let yOffset = 60;
+
+      // Strip 0: all singleton groups in one row
+      singles.forEach((m, i) => {
+        modulePos.set(m, { x: 60 + i * colW, y: yOffset });
+      });
+      if (singles.length) yOffset += rowH + STRIP_GAP;
+
+      // One strip per multi-member group — cols scale with group size
+      // so strips stay ≤ MAX_STRIP_ROWS tall (capped at MAX_STRIP_COLS wide)
+      multis.forEach((members) => {
+        const cols = Math.min(MAX_STRIP_COLS, Math.max(4, Math.ceil(members.length / MAX_STRIP_ROWS)));
+        members.forEach((m, i) => {
+          modulePos.set(m, {
+            x: 60 + (i % cols) * colW,
+            y: yOffset + Math.floor(i / cols) * rowH,
+          });
+        });
+        yOffset += Math.ceil(members.length / cols) * rowH + STRIP_GAP;
+      });
+    } else {
+      const cols = 4;
+      sortedMods.forEach((m, i) => {
+        modulePos.set(m, { x: 60 + (i % cols) * colW, y: 60 + Math.floor(i / cols) * rowH });
+      });
+    }
     const inCycle = new Set();
     const cycleCulprits = new Map(); // mod -> Set of file paths
 
@@ -839,7 +959,7 @@ async function scanProject(root, opts = {}) {
       const loc = [...set].reduce((a, f) => a + (fileLoc.get(f) || 0), 0);
       const lastModified = [...set].reduce((a, f) => Math.max(a, fileGit.get(f) || 0), 0);
 
-      const col = i % cols, row = Math.floor(i / cols);
+      const { x: _px, y: _py } = modulePos.get(m) || { x: 60, y: 60 };
       const relPaths = [...set].map((f) => path.relative(root, f).split(path.sep).join("/")).sort();
 
       const isConfigOnly = [...set].every(f => {
@@ -892,8 +1012,8 @@ async function scanProject(root, opts = {}) {
         infoMsg,
         isOrphan,
         isEntry,
-        x: 60 + col * colW,
-        y: 60 + row * rowH,
+        x: _px,
+        y: _py,
         files: filesInMod,
         loc,
         lastModified,

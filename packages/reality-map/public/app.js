@@ -1160,7 +1160,11 @@
       const tr = document.createElement("tr");
       cols.forEach((c) => {
         const td = document.createElement("td");
-        td.textContent = r[c] != null ? String(r[c]) : "—";
+        if (c && typeof c === "object") {
+          td.innerHTML = c.render != null ? c.render(r[c.key]) : (r[c.key] != null ? String(r[c.key]) : "—");
+        } else {
+          td.textContent = r[c] != null ? String(r[c]) : "—";
+        }
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
@@ -1214,6 +1218,22 @@
         if (pathCell) showFileDrawer(pathCell.textContent);
       });
     });
+
+    // ── Directory stats ───────────────────────────────────────────
+    const dirStats = ins.dirStats;
+    if (dirStats) {
+      fillTable(document.querySelector("#tbl-dir-stats tbody"), dirStats.stats || [], [
+        "dir", "files", "loc", "inbound", "outbound",
+        { key: "coupling", render: (v) => {
+            const color = v >= 80 ? "#fb7185" : v >= 50 ? "#fbbf24" : "#6ee7b7";
+            return `<span style="color:${color};font-weight:600">${v}%</span>`;
+          }
+        },
+      ]);
+      fillTable(document.querySelector("#tbl-dir-flow tbody"), dirStats.flow || [], [
+        "from", "to", "count",
+      ]);
+    }
   }
 
   function chip(t, color) {
