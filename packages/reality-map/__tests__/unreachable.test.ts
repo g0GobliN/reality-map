@@ -134,6 +134,113 @@ describe("buildUnreachableReport", () => {
     expect(ghost?.loc).toBe(42);
   });
 
+  // Python
+  it("detects unreachable Python files not reachable from main.py", () => {
+    const scan = makeScan({
+      "src/main.py": ["./app"],
+      "src/app.py": [],
+      "src/legacy.py": [],   // never imported
+    });
+    const result = buildUnreachableReport(scan, "src");
+    expect(result.unreachableCount).toBe(1);
+    expect(result.unreachable[0].path).toBe("src/legacy.py");
+  });
+
+  it("resolves Python relative imports to mark files as reachable", () => {
+    const scan = makeScan({
+      "src/__main__.py": ["./utils"],
+      "src/utils.py": [],
+    });
+    const result = buildUnreachableReport(scan, "src");
+    expect(result.unreachableCount).toBe(0);
+  });
+
+  it("resolves Python package imports via __init__.py", () => {
+    const scan = makeScan({
+      "src/main.py": ["./models"],
+      "src/models/__init__.py": [],
+      "src/orphan.py": [],
+    });
+    const result = buildUnreachableReport(scan, "src");
+    expect(result.unreachable.map((f: { path: string }) => f.path)).toContain("src/orphan.py");
+    expect(result.unreachable.map((f: { path: string }) => f.path)).not.toContain("src/models/__init__.py");
+  });
+
+  // Go
+  it("detects unreachable Go files not imported from main.go", () => {
+    // Go relative imports reference the file directly, not the directory
+    const scan = makeScan({
+      "main.go": ["./pkg/router/router"],
+      "pkg/router/router.go": [],
+      "pkg/legacy/old.go": [],   // never imported
+    });
+    const result = buildUnreachableReport(scan, "pkg");
+    const paths = result.unreachable.map((f: { path: string }) => f.path);
+    expect(paths).toContain("pkg/legacy/old.go");
+    expect(paths).not.toContain("pkg/router/router.go");
+  });
+
+  // Rust
+  it("detects unreachable Rust files not reachable from main.rs", () => {
+    const scan = makeScan({
+      "src/main.rs": ["./handlers"],
+      "src/handlers.rs": [],
+      "src/unused_module.rs": [],  // never imported
+    });
+    const result = buildUnreachableReport(scan, "src");
+    expect(result.unreachable.map((f: { path: string }) => f.path)).toContain("src/unused_module.rs");
+    expect(result.unreachable.map((f: { path: string }) => f.path)).not.toContain("src/handlers.rs");
+  });
+
+  // resolvedEdges fast path — simulates real Go/Python scan output
+  it("uses resolvedEdges for reachability traversal (Go module imports)", () => {
+    // main.go imports internal package via module path → already resolved in resolvedEdges
+    const scan = {
+      scannedFilePaths: ["main.go", "pkg/handler/handler.go", "pkg/handler/middleware.go", "pkg/unused/old.go"],
+      fileDetails: {
+        imports: {
+          "main.go": ["github.com/mymodule/pkg/handler"],
+          "pkg/handler/handler.go": [],
+          "pkg/handler/middleware.go": [],
+          "pkg/unused/old.go": [],
+        },
+        loc: {},
+        resolvedEdges: {
+          // Go package import → all files in the package directory
+          "main.go": ["pkg/handler/handler.go", "pkg/handler/middleware.go"],
+        },
+      },
+    };
+    const result = buildUnreachableReport(scan, "pkg");
+    const paths = result.unreachable.map((f: { path: string }) => f.path);
+    expect(paths).toContain("pkg/unused/old.go");
+    expect(paths).not.toContain("pkg/handler/handler.go");
+    expect(paths).not.toContain("pkg/handler/middleware.go");
+  });
+
+  it("uses resolvedEdges for reachability traversal (Python absolute imports)", () => {
+    const scan = {
+      scannedFilePaths: ["src/__main__.py", "src/models/user.py", "src/services/auth.py", "src/legacy.py"],
+      fileDetails: {
+        imports: {
+          "src/__main__.py": ["myapp.models.user", "myapp.services.auth"],
+          "src/models/user.py": [],
+          "src/services/auth.py": [],
+          "src/legacy.py": [],
+        },
+        loc: {},
+        resolvedEdges: {
+          "src/__main__.py": ["src/models/user.py", "src/services/auth.py"],
+        },
+      },
+    };
+    const result = buildUnreachableReport(scan, "src");
+    const paths = result.unreachable.map((f: { path: string }) => f.path);
+    expect(paths).toContain("src/legacy.py");
+    expect(paths).not.toContain("src/models/user.py");
+    expect(paths).not.toContain("src/services/auth.py");
+  });
+
   it("returns correct summary counts", () => {
     const scan = makeScan({
       "src/index.jsx": ["./A"],
