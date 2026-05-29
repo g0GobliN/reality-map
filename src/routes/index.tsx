@@ -339,7 +339,6 @@ function VisualizationSection() {
   );
 }
 
-
 function CircularSection() {
   return (
     <Section
@@ -412,13 +411,22 @@ function CircularSection() {
         </div>
         <div className="col-span-12 space-y-3 lg:col-span-5">
           {[
-            { t: "Real-time scanner", d: "Re-scan on demand or with --watch; the graph updates live in the browser." },
+            {
+              t: "Real-time scanner",
+              d: "Re-scan on demand or with --watch; the graph updates live in the browser.",
+            },
             {
               t: "Edge-level visibility",
               d: "Hover any node to highlight its edges. Click to lock focus — neighbours glow, everything else fades.",
             },
-            { t: "Cycle list panel", d: "All detected cycles listed by file. Click a cycle entry to highlight the ring in the graph." },
-            { t: "CI integration", d: "Pass --fail-on-cycles to exit 1 on any new circular dependency. Safe for legacy debt — fails only when cycles grow." },
+            {
+              t: "Cycle list panel",
+              d: "All detected cycles listed by file. Click a cycle entry to highlight the ring in the graph.",
+            },
+            {
+              t: "CI integration",
+              d: "Pass --fail-on-cycles to exit 1 on any new circular dependency. Safe for legacy debt — fails only when cycles grow.",
+            },
           ].map((f) => (
             <div key={f.t} className="glass rounded-xl p-5">
               <div className="text-sm font-medium">{f.t}</div>
@@ -430,7 +438,6 @@ function CircularSection() {
     </Section>
   );
 }
-
 
 function LocalFirst() {
   return (
