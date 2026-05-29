@@ -133,4 +133,32 @@ describe("buildDeadCodeReport", () => {
       expect(c.confidence).toBeLessThanOrEqual(99);
     }
   });
+
+  it("counts importers via @/ path alias (default src/ mapping)", () => {
+    // Button is imported via @/ alias — should NOT be flagged as dead
+    const scan = makeScan(
+      ["src/index.ts", "src/components/Button.ts"],
+      {
+        "src/index.ts": { specs: ["@/components/Button"] },
+        "src/components/Button.ts": { specs: [] },
+      },
+      { "src/index.ts": 10, "src/components/Button.ts": 30 },
+    );
+    const result = buildDeadCodeReport(scan);
+    expect(result.candidates.some((c: { path: string }) => c.path === "src/components/Button.ts")).toBe(false);
+  });
+
+  it("flags file as dead when alias does not resolve to it", () => {
+    // OldUtil is not imported by anyone — should be flagged
+    const scan = makeScan(
+      ["src/index.ts", "src/utils/OldUtil.ts"],
+      {
+        "src/index.ts": { specs: ["@/utils/NewUtil"] },
+        "src/utils/OldUtil.ts": { specs: [] },
+      },
+      { "src/index.ts": 10, "src/utils/OldUtil.ts": 40 },
+    );
+    const result = buildDeadCodeReport(scan);
+    expect(result.candidates.some((c: { path: string }) => c.path === "src/utils/OldUtil.ts")).toBe(true);
+  });
 });
