@@ -1,6 +1,9 @@
 /* eslint-disable */
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
+
 /**
  * Dead Code Detector
  * Scores each file on likelihood of being unused/dead code.
@@ -36,11 +39,38 @@ const CONFIG_PATTERNS = [
   /prettier/,
 ];
 
-function buildDeadCodeReport(scan) {
+function loadAliases(root) {
+  const aliases = [{ prefix: "@/", target: "src/" }];
+  if (!root) return aliases;
+  try {
+    let raw = fs.readFileSync(path.join(root, "tsconfig.json"), "utf8");
+    raw = raw
+      .replace(/\/\/[^\n]*/g, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/,(\s*[}\]])/g, "$1");
+    const config = JSON.parse(raw);
+    const tsPaths = config?.compilerOptions?.paths || {};
+    for (const [alias, targets] of Object.entries(tsPaths)) {
+      if (!alias.endsWith("/*")) continue;
+      const target = Array.isArray(targets) ? targets[0] : null;
+      if (!target) continue;
+      const prefix = alias.slice(0, -1);
+      const normalTarget = target.replace(/\*$/, "").replace(/^\.\//, "");
+      if (!aliases.some((a) => a.prefix === prefix)) {
+        aliases.push({ prefix, target: normalTarget });
+      }
+    }
+  } catch {}
+  return aliases;
+}
+
+function buildDeadCodeReport(scan, root) {
   const fileDetails = scan.fileDetails || {};
   const importsMap = fileDetails.imports || {};
   const locMap = fileDetails.loc || {};
   const allFiles = scan.scannedFilePaths || [];
+  const fileSet = new Set(allFiles);
+  const aliases = loadAliases(root);
 
   // Count importers for each file
   const importerCount = new Map();
@@ -50,7 +80,7 @@ function buildDeadCodeReport(scan) {
     const data = importsMap[file];
     if (!data) continue;
     for (const spec of (data.specs || [])) {
-      const resolved = resolveSpec(file, spec, allFiles);
+      const resolved = resolveSpecFull(file, spec, fileSet, aliases);
       if (resolved && resolved !== file) {
         importerCount.set(resolved, (importerCount.get(resolved) || 0) + 1);
       }
@@ -114,18 +144,22 @@ function buildReason(outgoing, loc, file) {
   return parts.join(" · ");
 }
 
-function resolveSpec(fromFile, spec, allFiles) {
-  if (!spec.startsWith(".") && !spec.startsWith("/")) return null;
-  const fromDir = fromFile.split("/").slice(0, -1).join("/");
-  const base = joinPosix(fromDir, spec);
+function resolveSpecFull(fromFile, spec, fileSet, aliases) {
   const exts = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"];
-  const candidates = [
-    base,
-    ...exts.map(e => base + e),
-    ...exts.map(e => base + "/index" + e),
-  ];
-  const fileSet = new Set(allFiles);
-  for (const c of candidates) if (fileSet.has(c)) return c;
+  if (spec.startsWith(".") || spec.startsWith("/")) {
+    const fromDir = fromFile.split("/").slice(0, -1).join("/");
+    const base = joinPosix(fromDir, spec);
+    const candidates = [base, ...exts.map(e => base + e), ...exts.map(e => base + "/index" + e)];
+    for (const c of candidates) if (fileSet.has(c)) return c;
+    return null;
+  }
+  for (const { prefix, target } of aliases) {
+    if (spec.startsWith(prefix)) {
+      const base = target + spec.slice(prefix.length);
+      const candidates = [base, ...exts.map(e => base + e), ...exts.map(e => base + "/index" + e)];
+      for (const c of candidates) if (fileSet.has(c)) return c;
+    }
+  }
   return null;
 }
 

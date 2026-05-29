@@ -16,6 +16,7 @@ const { buildOrphanReport } = require("../lib/orphans.js");
 const { renderHtml } = require("../lib/html-export.js");
 const { extStats, unusedDeps, shortestPath, inspectModule, filesCsv, RULES_TEMPLATE } = require("../lib/extras.js");
 const { analyzeDeps } = require("../lib/deps.js");
+const { buildUnreachableReport } = require("../lib/unreachable.js");
 
 function printMachineError(code, message, extra) {
   const payload = { type: "reality-map-error", code, message, ...extra };
@@ -65,6 +66,8 @@ function parseArgs(argv) {
     deps: false,
     depsJson: false,
     failOnVuln: null,
+    unreachableFiles: null, // {entry, srcDir}
+    unreachableFilesJson: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -214,6 +217,23 @@ function parseArgs(argv) {
     } else if (a === "--deps-json") {
       args.depsJson = true;
       args.deps = true;
+    } else if (a === "--unreachable-files") {
+      const src = argv[++i];
+      if (!src || src.startsWith("-")) {
+        printMachineError("EARG", "--unreachable-files requires <src-dir>");
+        console.error("reality-map: --unreachable-files requires <src-dir>");
+        process.exit(1);
+      }
+      args.unreachableFiles = { srcDir: src };
+    } else if (a === "--unreachable-files-json") {
+      const src = argv[++i];
+      if (!src || src.startsWith("-")) {
+        printMachineError("EARG", "--unreachable-files-json requires <src-dir>");
+        console.error("reality-map: --unreachable-files-json requires <src-dir>");
+        process.exit(1);
+      }
+      args.unreachableFiles = { srcDir: src };
+      args.unreachableFilesJson = true;
     } else if (a === "--fail-on-vuln") {
       const sev = argv[i + 1];
       const valid = ["low", "moderate", "high", "critical"];
@@ -287,6 +307,11 @@ Options:
       --no-color     Disable ANSI colors in terminal output
       --deps         Run dependency intelligence: unused, deprecated, vulnerable, outdated
       --deps-json    Print dependency analysis as JSON and exit (implies --deps)
+      --unreachable-files <src-dir>
+                     Report source files in <src-dir> unreachable from named entry points
+                     (node_modules are skipped)
+      --unreachable-files-json <src-dir>
+                     Print unreachable-files report as JSON and exit
       --fail-on-vuln [severity]
                      Exit 1 if vulnerabilities at or above severity are found (default: critical)
                      Severity levels: low, moderate, high, critical
@@ -321,6 +346,10 @@ or anything under it; \`*\` and \`?\` match within a single path segment.
   if (args.exportHtml || args.orphansOut || args.diffOut || args.showTree) {
     args.open = false;
     args.noServe = true;
+  }
+  if (args.unreachableFiles) {
+    args.noServe = true;
+    args.open = false;
   }
   if (args.exportCsv || args.why || args.inspect || args.insights || args.extStats || args.unusedDeps || args.initRules) {
     args.noServe = true;
@@ -851,6 +880,38 @@ function buildDependencyTree(scan, modId, maxDepth) {
         }
       }
     }
+  }
+
+  // ---- Unreachable source files -------------------------------------------
+  if (args.unreachableFiles) {
+    const { srcDir } = args.unreachableFiles;
+    const rep = buildUnreachableReport(scan, srcDir, args.root);
+
+    if (args.unreachableFilesJson) {
+      console.log(JSON.stringify(rep));
+      process.exit(0);
+    }
+
+    log("");
+    log(`  ${bold("unreachable source files")}  ${dim(`src: ${rep.srcDir}`)}`);
+    log(`    ${dim("·")} ${rep.totalFiles} source files scanned · ${rep.reachableCount} reachable · ${bold(String(rep.unreachableCount))} unreachable`);
+
+    if (!rep.unreachable.length) {
+      log(`    ${green("✓")} ${dim("all source files are reachable")}`);
+    } else {
+      const fmtSize = (f) => {
+        if (f.bytes != null) return `${(f.bytes / 1024).toFixed(1)} KB`;
+        return `${f.loc} loc`;
+      };
+      for (const f of rep.unreachable) {
+        log(`    ${dim("·")} ${yellow(f.path).padEnd(72)}  ${dim(fmtSize(f))}`);
+      }
+      if (rep.totalUnreachableBytes) {
+        const totalKb = (rep.totalUnreachableBytes / 1024).toFixed(1);
+        log(`    ${dim(`total: ${totalKb} KB across ${rep.unreachableCount} file(s)`)}`);
+      }
+    }
+    log("");
   }
 
   // ---- Why / shortest path ------------------------------------------------

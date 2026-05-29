@@ -11,6 +11,7 @@ const { renderHtml } = require("./html-export.js");
 const { loadRules, checkRules } = require("./rules.js");
 const { computeImpact } = require("./impact.js");
 const { buildDeadCodeReport } = require("./deadcode.js");
+const { buildUnreachableReport } = require("./unreachable.js");
 const { analyzeDeps } = require("./deps.js");
 
 const PUBLIC = path.join(__dirname, "..", "public");
@@ -99,7 +100,14 @@ function startServer({ port, graph, root, maxDepth, watch = false }) {
 
       if (url.pathname === "/api/deadcode" && req.method === "GET") {
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify(buildDeadCodeReport(currentGraph)));
+        res.end(JSON.stringify(buildDeadCodeReport(currentGraph, root)));
+        return;
+      }
+
+      if (url.pathname === "/api/unreachable" && req.method === "GET") {
+        const src = url.searchParams.get("src") || "src";
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify(buildUnreachableReport(currentGraph, src, root)));
         return;
       }
 
@@ -167,7 +175,23 @@ function startServer({ port, graph, root, maxDepth, watch = false }) {
         const symbols = details.symbols?.[filePath] || [];
         const loc = details.loc?.[filePath] || 0;
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ path: filePath, imports, symbols, loc }));
+        const lastModified = details.lastModified?.[filePath] || 0;
+        res.end(JSON.stringify({ path: filePath, imports, symbols, loc, lastModified }));
+        return;
+      }
+
+      if (url.pathname.startsWith("/api/preview/") && req.method === "GET") {
+        const filePath = decodeURIComponent(url.pathname.slice(13));
+        const absPath = path.join(root || process.cwd(), filePath);
+        try {
+          const content = fs.readFileSync(absPath, "utf8");
+          const lines = content.split("\n").slice(0, 20).join("\n");
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+          res.end(JSON.stringify({ lines }));
+        } catch {
+          res.writeHead(404, { "content-type": "application/json; charset=utf-8" });
+          res.end(JSON.stringify({ error: "not found" }));
+        }
         return;
       }
 

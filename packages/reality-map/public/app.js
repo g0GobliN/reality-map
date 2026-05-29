@@ -409,7 +409,12 @@
     const legend = document.getElementById("map-legend");
     if (!legend) return;
     if (mapMode === "arch") {
-      legend.innerHTML = "";
+      const toneLabels = { cyan: "ui/infra", violet: "api/auth", emerald: "db", amber: "isolated", rose: "test/legacy" };
+      const nodes = currentViewGraph?.nodes || [];
+      const usedTones = [...new Set(nodes.map(n => n.tone).filter(t => t && toneLabels[t]))];
+      if (!usedTones.length) { legend.innerHTML = ""; return; }
+      const dot = (color, label) => `<span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted)"><span style="width:7px;height:7px;border-radius:50%;background:${color};flex:none"></span>${label}</span>`;
+      legend.innerHTML = `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${usedTones.map(t => dot(TONE[t], toneLabels[t])).join("")}</div>`;
     } else if (mapMode === "activity") {
       legend.innerHTML = `
         <div style="display:flex; gap:8px; align-items:center">
@@ -440,12 +445,12 @@
     document.getElementById("view-deadcode").hidden = tab !== "deadcode";
     document.getElementById("view-deps").hidden = tab !== "deps";
     const pkgDrawer = document.getElementById("pkg-drawer");
-    if (pkgDrawer) {
-      pkgDrawer.hidden = true;
+    if (pkgDrawer) pkgDrawer.hidden = true;
+    if (tab !== "deadcode") {
+      const udDrawer = document.getElementById("unreachable-drawer");
+      if (udDrawer) udDrawer.hidden = true;
     }
-    if (typeof closeDrawer === "function") {
-      closeDrawer();
-    }
+    if (typeof closeDrawer === "function") closeDrawer();
     if (tab === "insights") renderInsights();
     if (tab === "files") renderFilesTable();
     if (tab === "health") renderHealth();
@@ -595,6 +600,12 @@
           </p>
         </div>`;
       drawerWarn.hidden = false;
+    } else if (node.tone === "rose") {
+      drawerWarn.innerHTML = `<div style="font-size:12px;line-height:1.6;color:var(--fg)"><span style="color:${TONE.rose}">●</span> <strong>Rose = test / legacy code.</strong> This module matched a test or legacy naming pattern (<code style="font-size:11px">__tests__</code>, <code style="font-size:11px">spec</code>, <code style="font-size:11px">legacy</code>, etc.). No architectural problem — just color-coded so you can spot it quickly on the map.</div>`;
+      drawerWarn.hidden = false;
+    } else if (node.tone === "amber") {
+      drawerWarn.innerHTML = `<div style="font-size:12px;line-height:1.6">🟡 <strong>Amber = isolated module.</strong> Nothing in your app imports this module. It may be an unused entry point or leftover code.</div>`;
+      drawerWarn.hidden = false;
     } else {
       drawerWarn.hidden = true;
     }
@@ -708,7 +719,16 @@
     } catch {}
 
     drawerTitle.textContent = filePath;
-    drawerMeta.textContent = `${data.loc} lines · ${data.symbols.length} symbols · ${data.imports.specs.length} imports`;
+    const _agoStr = (() => {
+      if (!data.lastModified) return null;
+      const diff = Math.floor(Date.now() / 1000 - data.lastModified);
+      if (diff < 3600)    return Math.floor(diff / 60) + "m ago";
+      if (diff < 86400)   return Math.floor(diff / 3600) + "h ago";
+      if (diff < 2592000) return Math.floor(diff / 86400) + "d ago";
+      if (diff < 31536000) return Math.floor(diff / 2592000) + " months ago";
+      return Math.floor(diff / 31536000) + " years ago";
+    })();
+    drawerMeta.textContent = [`${data.loc} lines`, `${data.symbols.length} symbols`, `${data.imports.specs.length} imports`, _agoStr ? "last commit " + _agoStr : null].filter(Boolean).join(" · ");
 
     drawerFiles.innerHTML = `
       <div class="drawer-help-box" style="margin: 0 8px 16px 8px; padding:12px; background:rgba(255,255,255,0.03); border-radius:8px; font-size:0.85em; border:1px solid rgba(255,255,255,0.05)">
@@ -920,6 +940,59 @@
     return copy;
   }
 
+  function renderArchHealth(graph) {
+    const el = document.getElementById("arch-health");
+    if (!el) return;
+    const nodes = graph.nodes || [];
+    const cycles = graph.cycles || [];
+
+    const signals = [];
+
+    // Cycles
+    if (cycles.length === 0) {
+      signals.push({ color: TONE.emerald, icon: "✓", label: "No circular deps" });
+    } else {
+      signals.push({ color: TONE.rose, icon: "✗", label: `${cycles.length} circular dep${cycles.length > 1 ? "s" : ""}` });
+    }
+
+    // Size balance — ratio of largest to median module LOC
+    if (nodes.length >= 2) {
+      const locs = nodes.map(n => n.loc || 0).filter(l => l > 0).sort((a, b) => a - b);
+      if (locs.length >= 2) {
+        const median = locs[Math.floor(locs.length / 2)];
+        const max = locs[locs.length - 1];
+        const maxNode = nodes.find(n => (n.loc || 0) === max);
+        const ratio = median > 0 ? max / median : Infinity;
+        if (ratio <= 3) {
+          signals.push({ color: TONE.emerald, icon: "✓", label: "Modules balanced" });
+        } else if (ratio <= 8) {
+          signals.push({ color: TONE.amber, icon: "!", label: `${maxNode?.label || "One"} is ${Math.round(ratio)}× median size` });
+        } else {
+          signals.push({ color: TONE.rose, icon: "✗", label: `${maxNode?.label || "One"} is ${Math.round(ratio)}× median — very unbalanced` });
+        }
+      }
+    }
+
+    // Coupling — highest fan-out module
+    if (nodes.length >= 2) {
+      const mostCoupled = nodes.reduce((a, b) => (b.fanOut || 0) > (a.fanOut || 0) ? b : a, nodes[0]);
+      const fanOut = mostCoupled.fanOut || 0;
+      if (fanOut <= 3) {
+        signals.push({ color: TONE.emerald, icon: "✓", label: "Low coupling" });
+      } else if (fanOut <= 6) {
+        signals.push({ color: TONE.amber, icon: "!", label: `${mostCoupled.label} couples to ${fanOut} modules` });
+      } else {
+        signals.push({ color: TONE.rose, icon: "✗", label: `${mostCoupled.label} couples to ${fanOut} modules` });
+      }
+    }
+
+    el.innerHTML = signals.map(s => `
+      <div class="row" style="padding:5px 8px">
+        <span class="dot" style="background:${s.color}"></span>
+        <span class="name" style="font-size:12px"><span style="color:${s.color};margin-right:4px">${s.icon}</span>${s.label}</span>
+      </div>`).join("");
+  }
+
   function updateDetailPanel(graph) {
     if (!detailPanel) return;
     if (!selected) {
@@ -1025,6 +1098,7 @@
       extList.appendChild(item);
     });
 
+    renderArchHealth(graph);
     updateDetailPanel(graph);
     setBackButton();
 
@@ -1437,10 +1511,13 @@
 
   // ── Edge tooltip ──────────────────────────────────────────────
   function showEdgeTooltip(ev, edge, a, b) {
-    edgeTooltip.innerHTML = `
-      <div class="et-title">${edge.weight || 1} import(s)</div>
-      <div class="et-line">${a.id} → ${b.id}</div>
-    `;
+    const isCycle = a.warn || b.warn;
+    edgeTooltip.innerHTML = isCycle
+      ? `<div class="et-title" style="color:${TONE.rose}">⟳ Circular dependency</div>
+         <div class="et-line">${a.id} → ${b.id}</div>
+         <div class="et-line" style="margin-top:6px;font-size:11px;opacity:0.8">These two modules import each other (directly or transitively). Circular deps can cause hard-to-debug load order issues and prevent tree-shaking. Click for details.</div>`
+      : `<div class="et-title">${edge.weight || 1} import(s)</div>
+         <div class="et-line">${a.id} → ${b.id}</div>`;
     edgeTooltip.hidden = false;
     positionEdgeTooltip(ev);
   }
@@ -1462,31 +1539,59 @@
         label: drawerData.id.split("/").pop(),
       });
     }
+    const isCycle = a.warn || b.warn;
     drawerData = { type: "edge", id: `${a.id}→${b.id}` };
     drawerTitle.textContent = `${a.id} → ${b.id}`;
-    drawerMeta.textContent = `${edge.weight || 1} import connection(s)`;
-    drawerFiles.innerHTML = `<h4>Connection</h4><div class="dim" style="font-size:11px;padding:4px 8px">Click a file to explore its imports</div>`;
+    drawerMeta.textContent = isCycle ? "⟳ Circular dependency" : `${edge.weight || 1} import connection(s)`;
     drawerSymbols.innerHTML = "";
     drawerImports.innerHTML = "";
     allSymbols = [];
     renderDrawerBreadcrumb();
 
-    // Show files from source module
-    const srcFiles = a.pathsPreview || [];
-    if (srcFiles.length) {
-      const h = document.createElement("h4");
-      h.textContent = `Files in ${a.id}`;
-      drawerFiles.appendChild(h);
-      const list = document.createElement("div");
-      list.className = "file-list";
-      srcFiles.forEach((p) => {
-        const item = document.createElement("div");
-        item.className = "file-item";
-        item.innerHTML = `<span class="fi-dot"></span><span class="fi-path" title="${p}">${p}</span>`;
-        item.addEventListener("click", () => showFileDrawer(p));
-        list.appendChild(item);
-      });
-      drawerFiles.appendChild(list);
+    if (isCycle) {
+      // Find the full cycle path from graph cycles
+      const cycleMatch = (currentViewGraph?.cycles || []).find(cy =>
+        cy.includes(a.id) && cy.includes(b.id)
+      );
+      drawerFiles.innerHTML = `
+        <div style="margin-bottom:14px;padding:10px 12px;background:${TONE.rose}11;border:1px solid ${TONE.rose}44;border-radius:8px">
+          <div style="color:${TONE.rose};font-weight:600;margin-bottom:6px">⟳ Circular Dependency</div>
+          <div style="font-size:12px;line-height:1.6;color:var(--fg)">
+            These modules import each other, creating a loop. This can cause:<br>
+            • Unpredictable load order at runtime<br>
+            • Bundler errors or silent undefined values<br>
+            • Harder to test and refactor code
+          </div>
+        </div>
+        ${cycleMatch ? `
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Cycle path</div>
+          <div class="mono" style="font-size:12px;color:${TONE.rose};line-height:2;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:6px">
+            ${[...cycleMatch, cycleMatch[0]].join(' <span style="opacity:0.5">→</span> ')}
+          </div>
+        ` : ""}
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin:14px 0 6px">How to fix</div>
+        <div style="font-size:12px;line-height:1.6;color:var(--fg)">
+          Extract the shared logic into a third module that both can import without importing each other.
+        </div>
+      `;
+    } else {
+      drawerFiles.innerHTML = `<h4>Connection</h4><div class="dim" style="font-size:11px;padding:4px 8px">Click a file to explore its imports</div>`;
+      const srcFiles = a.pathsPreview || [];
+      if (srcFiles.length) {
+        const h = document.createElement("h4");
+        h.textContent = `Files in ${a.id}`;
+        drawerFiles.appendChild(h);
+        const list = document.createElement("div");
+        list.className = "file-list";
+        srcFiles.forEach((p) => {
+          const item = document.createElement("div");
+          item.className = "file-item";
+          item.innerHTML = `<span class="fi-dot"></span><span class="fi-path" title="${p}">${p}</span>`;
+          item.addEventListener("click", () => showFileDrawer(p));
+          list.appendChild(item);
+        });
+        drawerFiles.appendChild(list);
+      }
     }
     openDrawer();
   }
@@ -2005,49 +2110,352 @@
   }
 
   // ── Dead code tab ─────────────────────────────────────────────
-  document.getElementById("deadcode-refresh")?.addEventListener("click", renderDeadCode);
+  const DC_DISMISS_KEY = "rm-dismissed-deadcode";
+  function dcGetDismissed() {
+    try { return new Set(JSON.parse(localStorage.getItem(DC_DISMISS_KEY) || "[]")); } catch { return new Set(); }
+  }
+  function dcSaveDismissed(set) {
+    localStorage.setItem(DC_DISMISS_KEY, JSON.stringify([...set]));
+  }
+
+  let _dcRendered = false;
+  let _dcAllRows = [];
+
+  document.getElementById("deadcode-refresh")?.addEventListener("click", () => {
+    _dcRendered = false;
+    renderDeadCode();
+  });
+
+  const _dcFilter = document.getElementById("deadcode-filter");
+  _dcFilter?.addEventListener("input", () => {
+    if (activeTab === "deadcode") renderDeadCodeRows();
+  });
+
+  function renderDeadCodeRows() {
+    const tbody = document.querySelector("#tbl-deadcode tbody");
+    if (!tbody) return;
+    const q = (_dcFilter?.value || "").trim().toLowerCase();
+    const rows = q ? _dcAllRows.filter(f => f.path.toLowerCase().includes(q)) : _dcAllRows;
+    tbody.innerHTML = "";
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="6" style="color:var(--muted);padding:16px">${q ? "No matches." : "No unused files found."}</td></tr>`;
+      return;
+    }
+    const statusBadge = (status) => {
+      if (status === "confirmed")   return `<span style="font-size:10px;font-weight:600;color:${TONE.rose};background:${TONE.rose}22;border:1px solid ${TONE.rose}55;padding:1px 6px;border-radius:4px">confirmed</span>`;
+      if (status === "unreachable") return `<span style="font-size:10px;font-weight:600;color:${TONE.amber};background:${TONE.amber}22;border:1px solid ${TONE.amber}55;padding:1px 6px;border-radius:4px">unreachable</span>`;
+      return `<span style="font-size:10px;color:var(--muted);background:rgba(255,255,255,0.05);border:1px solid var(--border);padding:1px 6px;border-radius:4px">suspected</span>`;
+    };
+    rows.forEach((f) => {
+      const tr = document.createElement("tr");
+      const confClass = f.confidence >= 80 ? "high" : f.confidence != null && f.confidence < 50 ? "low" : "";
+      tr.innerHTML = `
+        <td style="cursor:pointer;color:var(--cyan)">${f.path}</td>
+        <td>${f.loc}</td>
+        <td>${statusBadge(f.status)}</td>
+        <td>${f.confidence != null ? `<div class="confidence-bar"><div class="confidence-fill ${confClass}" style="width:${f.confidence}%"></div><span style="font-size:10px;color:var(--muted)">${f.confidence}%</span></div>` : `<span class="dim">—</span>`}</td>
+        <td style="color:var(--muted);font-size:11px">${f.reason ?? (f.status === "unreachable" ? "not reachable from any entry point" : "")}</td>
+        <td><button class="dc-dismiss-btn" title="Dismiss" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:4px;line-height:1" data-path="${f.path}">✕</button></td>
+      `;
+      tr.querySelector("td").addEventListener("click", () => showUnreachableDrawer(f));
+      tr.querySelector(".dc-dismiss-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        dcDismiss(f.path, tr);
+      });
+      tbody.appendChild(tr);
+    });
+  }
 
   async function renderDeadCode() {
+    if (_dcRendered) { renderDeadCodeRows(); return; }
     const summary = document.getElementById("deadcode-summary");
     const tbody = document.querySelector("#tbl-deadcode tbody");
     summary.innerHTML = "<span class='dim'>Loading…</span>";
     tbody.innerHTML = "";
 
-    let data;
+    // fetch dead code + all unreachable src dirs in parallel
+    let dcData, unreachablePaths;
     try {
-      data = await fetch("/api/deadcode").then((r) => r.json());
+      const dirs = (() => {
+        const allFiles = scan.scannedFilePaths || [];
+        const dirCount = new Map();
+        for (const f of allFiles) {
+          const ext = f.slice(f.lastIndexOf(".")).toLowerCase();
+          if (!_SRC_EXTS.has(ext)) continue;
+          const dir = f.includes("/") ? f.split("/")[0] : ".";
+          if (!_EXCLUDED_DIRS.has(dir)) dirCount.set(dir, (dirCount.get(dir) || 0) + 1);
+        }
+        return [...dirCount.entries()].sort((a, b) => b[1] - a[1]).map(([d]) => d);
+      })();
+
+      const [dc, ...urResults] = await Promise.all([
+        fetch("/api/deadcode").then(r => r.json()),
+        ...dirs.map(src => fetch(`/api/unreachable?src=${encodeURIComponent(src)}`).then(r => r.json()).catch(() => ({ unreachable: [] }))),
+      ]);
+      dcData = dc;
+      unreachablePaths = new Set(urResults.flatMap(r => (r.unreachable || []).map(f => f.path)));
     } catch {
       summary.innerHTML = "<span class='dim'>Failed to load.</span>";
       return;
     }
 
-    summary.innerHTML = [
-      chip(`${data.totalFiles} total files`),
-      chip(`${data.candidateCount} candidates`),
-      chip(`~${data.potentialLocSavings} LOC potentially removable`),
-    ].join("");
+    // Merge: start with unreachable files, enrich with dead code data if present
+    const dcMap = new Map((dcData.candidates || []).map(f => [f.path, f]));
+    const merged = new Map();
 
-    tbody.innerHTML = "";
-    (data.candidates || []).forEach((f) => {
-      const tr = document.createElement("tr");
-      const confClass = f.confidence >= 80 ? "high" : f.confidence < 50 ? "low" : "";
-      tr.innerHTML = `
-        <td style="cursor:pointer;color:var(--cyan)">${f.path}</td>
-        <td>${f.loc}</td>
-        <td>${f.outgoing}</td>
-        <td>
-          <div class="confidence-bar">
-            <div class="confidence-fill ${confClass}" style="width:${f.confidence}px;max-width:80px"></div>
-            <span style="font-size:10px;color:var(--muted)">${f.confidence}%</span>
-          </div>
-        </td>
-        <td style="color:var(--muted);font-size:11px">${f.reason}</td>
-      `;
-      tr.querySelector("td").addEventListener("click", () => {
-        setTab("map");
-        showFileDrawer(f.path);
+    // Add all unreachable files
+    for (const p of unreachablePaths) {
+      const dc = dcMap.get(p);
+      merged.set(p, {
+        path: p,
+        loc: dc?.loc ?? (scan.fileDetails?.loc?.[p] || 0),
+        confidence: dc?.confidence ?? null,
+        reason: dc?.reason ?? null,
+        status: dc ? "confirmed" : "unreachable",
       });
-      tbody.appendChild(tr);
+    }
+
+    // Add dead code candidates not already in unreachable
+    for (const f of (dcData.candidates || [])) {
+      if (!merged.has(f.path)) {
+        merged.set(f.path, { ...f, status: "suspected" });
+      }
+    }
+
+    const _dismissed = dcGetDismissed();
+    _dcAllRows = [...merged.values()]
+      .filter(f => !_dismissed.has(f.path))
+      .sort((a, b) => {
+        const order = { confirmed: 0, unreachable: 1, suspected: 2 };
+        return (order[a.status] - order[b.status]) || (b.loc - a.loc);
+      });
+
+    const confirmed = _dcAllRows.filter(r => r.status === "confirmed").length;
+    const unreachableOnly = _dcAllRows.filter(r => r.status === "unreachable").length;
+    const suspected = _dcAllRows.filter(r => r.status === "suspected").length;
+    const totalLoc = _dcAllRows.reduce((s, r) => s + (r.loc || 0), 0);
+
+    summary.innerHTML = [
+      confirmed       ? chip(`${confirmed} confirmed`, TONE.rose)           : null,
+      unreachableOnly ? chip(`${unreachableOnly} unreachable`, TONE.amber)  : null,
+      suspected       ? chip(`${suspected} suspected`, null)                : null,
+      chip(`~${totalLoc} LOC removable`),
+    ].filter(Boolean).join("");
+
+    _dcRendered = true;
+    renderDeadCodeRows();
+    dcUpdateDismissedBtn();
+  }
+
+  // ── Dead code dismiss ─────────────────────────────────────────
+  let _dcToastTimer = null;
+
+  function dcUpdateDismissedBtn() {
+    const btn = document.getElementById("deadcode-show-dismissed");
+    if (!btn) return;
+    const count = dcGetDismissed().size;
+    if (count === 0) { btn.style.display = "none"; return; }
+    btn.style.display = "";
+    btn.textContent = `${count} dismissed`;
+  }
+
+  function dcDismiss(filePath, tr) {
+    const dismissed = dcGetDismissed();
+    dismissed.add(filePath);
+    dcSaveDismissed(dismissed);
+    _dcAllRows = _dcAllRows.filter(f => f.path !== filePath);
+    tr.style.opacity = "0";
+    tr.style.transition = "opacity 0.2s";
+    setTimeout(() => tr.remove(), 200);
+    dcUpdateDismissedBtn();
+    dcShowToast(`Dismissed — not showing again`, () => {
+      dismissed.delete(filePath);
+      dcSaveDismissed(dismissed);
+      dcUpdateDismissedBtn();
+      _dcRendered = false;
+      renderDeadCode();
+    });
+  }
+
+  function dcShowToast(msg, onUndo) {
+    const toast = document.getElementById("rm-toast");
+    if (!toast) return;
+    if (_dcToastTimer) clearTimeout(_dcToastTimer);
+    toast.innerHTML = `<span>${msg}</span><button style="background:none;border:1px solid var(--border);color:var(--cyan);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:12px">Undo</button>`;
+    toast.hidden = false;
+    toast.querySelector("button").addEventListener("click", () => {
+      toast.hidden = true;
+      clearTimeout(_dcToastTimer);
+      onUndo();
+    });
+    _dcToastTimer = setTimeout(() => { toast.hidden = true; }, 4000);
+  }
+
+  document.getElementById("deadcode-show-dismissed")?.addEventListener("click", () => {
+    const panel = document.getElementById("deadcode-dismissed-panel");
+    const list  = document.getElementById("deadcode-dismissed-list");
+    if (!panel || !list) return;
+    panel.hidden = !panel.hidden;
+    if (panel.hidden) return;
+    const dismissed = dcGetDismissed();
+    if (!dismissed.size) { list.innerHTML = `<span class="dim" style="font-size:12px">Nothing dismissed.</span>`; return; }
+    list.innerHTML = [...dismissed].map(p => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+        <span class="mono" style="font-size:12px;color:var(--fg)">${p}</span>
+        <button data-path="${p}" style="background:none;border:1px solid var(--border);color:var(--cyan);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px">Restore</button>
+      </div>`).join("");
+    list.querySelectorAll("button[data-path]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const dismissed = dcGetDismissed();
+        dismissed.delete(btn.dataset.path);
+        dcSaveDismissed(dismissed);
+        dcUpdateDismissedBtn();
+        _dcRendered = false;
+        renderDeadCode();
+        // Refresh the dismissed list in-place so the panel stays open
+        const remaining = dcGetDismissed();
+        if (!remaining.size) {
+          list.innerHTML = `<span class="dim" style="font-size:12px">Nothing dismissed.</span>`;
+        } else {
+          btn.closest("div").remove();
+        }
+      });
+    });
+  });
+
+  // ── Unreachable files tab ─────────────────────────────────────
+  const _SRC_EXTS = new Set([".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"]);
+  const _EXCLUDED_DIRS = new Set(["node_modules", "dist", "build", "out", ".next", ".nuxt", "coverage", "public", ".git"]);
+
+
+  // ── Unreachable file drawer ───────────────────────────────────
+  const _udDrawer  = document.getElementById("unreachable-drawer");
+  const _udTitle   = document.getElementById("ud-title");
+  const _udMeta    = document.getElementById("ud-meta");
+  const _udVerdict = document.getElementById("ud-verdict");
+  const _udBody    = document.getElementById("ud-body");
+  document.getElementById("ud-close")?.addEventListener("click", () => { _udDrawer.hidden = true; });
+
+  async function showUnreachableDrawer(f) {
+    _udDrawer.hidden = false;
+    _udTitle.textContent = f.path;
+    const sizeStr = f.bytes != null ? (f.bytes / 1024).toFixed(1) + " KB" : null;
+    _udMeta.textContent = [sizeStr, f.loc ? f.loc + " lines" : null].filter(Boolean).join(" · ");
+    // will be updated once fileData loads
+    _udVerdict.innerHTML = "";
+    _udBody.innerHTML = `<span class="dim" style="font-size:12px">Loading…</span>`;
+
+    let fileData = null, previewData = null;
+    try {
+      [fileData, previewData] = await Promise.all([
+        fetch("/api/file/" + encodeURIComponent(f.path)).then(r => r.json()),
+        fetch("/api/preview/" + encodeURIComponent(f.path)).then(r => r.json()),
+      ]);
+    } catch {}
+
+    const symbols      = fileData?.symbols         || [];
+    const specs        = fileData?.imports?.specs  || [];
+    const lastModified = fileData?.lastModified    || 0;
+
+    // Update meta with git age
+    if (lastModified) {
+      const ago = (() => {
+        const diff = Math.floor((Date.now() / 1000 - lastModified));
+        if (diff < 3600)   return Math.floor(diff / 60) + "m ago";
+        if (diff < 86400)  return Math.floor(diff / 3600) + "h ago";
+        if (diff < 2592000) return Math.floor(diff / 86400) + "d ago";
+        if (diff < 31536000) return Math.floor(diff / 2592000) + " months ago";
+        return Math.floor(diff / 31536000) + " years ago";
+      })();
+      _udMeta.textContent = [sizeStr, f.loc ? f.loc + " lines" : null, "last commit " + ago].filter(Boolean).join(" · ");
+    }
+
+    // Verdict
+    const hasExports = symbols.some(s => s.exported);
+    const verdictColor = hasExports ? "var(--amber)" : "var(--emerald)";
+    const verdictIcon  = hasExports ? "⚠" : "✓";
+    const verdictText  = hasExports
+      ? "Has exports — check if anything still needs these"
+      : "No exports — safe to delete";
+    _udVerdict.innerHTML = `<span style="font-size:12px;color:${verdictColor}">${verdictIcon} ${verdictText}</span>`;
+
+    const sections = [];
+
+    // Code preview
+    if (previewData?.lines) {
+      const escaped = previewData.lines
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      sections.push(`
+        <div>
+          <div class="sub-h" style="font-size:11px;margin-bottom:6px;color:var(--muted)">PREVIEW</div>
+          <pre style="margin:0;font-size:11px;line-height:1.6;color:var(--fg);background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:6px;padding:10px;overflow-x:auto;white-space:pre-wrap;word-break:break-all">${escaped}</pre>
+        </div>`);
+    }
+
+    // Why unreachable
+    sections.push(`
+      <div>
+        <div class="sub-h" style="font-size:11px;margin-bottom:6px;color:var(--muted)">WHY IS IT UNREACHABLE?</div>
+        <p style="font-size:12px;line-height:1.6;margin:0;color:var(--fg)">
+          No file in your source tree imports this file, and it's not a recognised entry point
+          (like <code style="font-size:11px">index</code>, <code style="font-size:11px">main</code>, or <code style="font-size:11px">app</code>).
+          It was never reached when tracing your app from its roots.
+        </p>
+      </div>`);
+
+    // Exports
+    const exported = symbols.filter(s => s.exported);
+    if (exported.length) {
+      const items = exported.map(s =>
+        `<div class="mono" style="font-size:11px;padding:3px 0;border-bottom:1px solid var(--border);color:var(--cyan)">${s.name}<span class="dim" style="margin-left:6px">${s.kind || ""}</span></div>`
+      ).join("");
+      sections.push(`
+        <div>
+          <div class="sub-h" style="font-size:11px;margin-bottom:6px;color:var(--muted)">EXPORTS GOING UNUSED (${exported.length})</div>
+          ${items}
+        </div>`);
+    } else if (symbols.length) {
+      const items = symbols.map(s =>
+        `<div class="mono" style="font-size:11px;padding:3px 0;border-bottom:1px solid var(--border);color:var(--fg)">${s.name}<span class="dim" style="margin-left:6px">${s.kind || ""}</span></div>`
+      ).join("");
+      sections.push(`
+        <div>
+          <div class="sub-h" style="font-size:11px;margin-bottom:6px;color:var(--muted)">SYMBOLS (${symbols.length}, none exported)</div>
+          ${items}
+        </div>`);
+    } else {
+      sections.push(`
+        <div>
+          <div class="sub-h" style="font-size:11px;margin-bottom:6px;color:var(--muted)">EXPORTS</div>
+          <div style="font-size:12px;color:var(--muted)">Nothing exported from this file.</div>
+        </div>`);
+    }
+
+    // Imports it pulls in
+    if (specs.length) {
+      const items = specs.map(s =>
+        `<div class="mono" style="font-size:11px;padding:3px 0;border-bottom:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${s}">${s}</div>`
+      ).join("");
+      sections.push(`
+        <div>
+          <div class="sub-h" style="font-size:11px;margin-bottom:6px;color:var(--muted)">PULLS IN (${specs.length})</div>
+          <div style="color:var(--muted);font-size:11px;margin-bottom:4px">This dead file still imports these — they may affect your bundle if not tree-shaken.</div>
+          ${items}
+        </div>`);
+    }
+
+    // Copy path action
+    sections.push(`
+      <div>
+        <button id="ud-copy-btn" style="font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--fg);cursor:pointer">Copy path</button>
+      </div>`);
+
+    _udBody.innerHTML = sections.join("");
+    _udBody.querySelector("#ud-copy-btn")?.addEventListener("click", () => {
+      navigator.clipboard.writeText(f.path).then(() => {
+        const btn = _udBody.querySelector("#ud-copy-btn");
+        if (btn) { btn.textContent = "Copied!"; setTimeout(() => { btn.textContent = "Copy path"; }, 1500); }
+      });
     });
   }
 
