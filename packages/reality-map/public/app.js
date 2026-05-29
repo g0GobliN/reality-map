@@ -446,6 +446,8 @@
     document.getElementById("view-deps").hidden = tab !== "deps";
     const pkgDrawer = document.getElementById("pkg-drawer");
     if (pkgDrawer) pkgDrawer.hidden = true;
+    const hdDrawer = document.getElementById("health-drawer");
+    if (hdDrawer && tab !== "health") hdDrawer.hidden = true;
     if (tab !== "deadcode") {
       const udDrawer = document.getElementById("unreachable-drawer");
       if (udDrawer) udDrawer.hidden = true;
@@ -1932,6 +1934,7 @@
     const reasonsEl = document.getElementById("health-reasons");
     wrap.innerHTML = "<span class='dim'>Loading…</span>";
     reasonsEl.innerHTML = "";
+    document.querySelector(".health-sparkline-wrap")?.remove();
 
     let h;
     try {
@@ -1977,32 +1980,185 @@
       );
     });
 
+    // ── Health history sparkline ──────────────────────────────────
+    const HISTORY_KEY = "rm_health_history";
+    let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+    history = history.filter((e, i, a) => i === 0 || e.s !== a[i - 1].s);
+    if (!history.length || history[history.length - 1].s !== h.score) {
+      history.push({ t: Date.now(), s: h.score });
+      if (history.length > 5) history.shift();
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    }
+    if (history.length >= 1) {
+      const gradeOf = (s) => s >= 90 ? "A" : s >= 80 ? "B" : s >= 70 ? "C" : s >= 60 ? "D" : "F";
+      const colorOf = (s) => s >= 80 ? "#6ee7b7" : s >= 60 ? "#fbbf24" : "#fb7185";
+      const timeAgo = (ts) => {
+        const d = Math.floor((Date.now() - ts) / 1000);
+        if (d < 60) return "just now";
+        if (d < 3600) return `${Math.floor(d / 60)}m ago`;
+        if (d < 86400) return `${Math.floor(d / 3600)}h ago`;
+        return `${Math.floor(d / 86400)}d ago`;
+      };
+      const rows = history.slice().reverse().map((e, i, arr) => {
+        const prev = arr[i + 1];
+        const delta = prev != null ? e.s - prev.s : null;
+        const deltaHtml = delta == null || delta === 0 ? `<span class="sh-delta sh-delta--neutral">—</span>`
+          : delta > 0 ? `<span class="sh-delta sh-delta--up">+${delta}</span>`
+          : `<span class="sh-delta sh-delta--down">${delta}</span>`;
+        return `<div class="sh-row${i === 0 ? " sh-row--current" : ""}">
+          <span class="sh-score" style="color:${colorOf(e.s)}">${e.s}</span>
+          <span class="sh-grade" style="color:${colorOf(e.s)}">${gradeOf(e.s)}</span>
+          <span class="sh-time">${timeAgo(e.t)}</span>
+          ${deltaHtml}
+        </div>`;
+      }).join("");
+      const sparkEl = document.createElement("div");
+      sparkEl.className = "health-sparkline-wrap";
+      sparkEl.innerHTML = `
+        <div class="sh-header">
+          <span class="sh-title">Score history</span>
+        </div>
+        <div class="sh-list">${rows}</div>
+      `;
+      reasonsEl.before(sparkEl);
+    }
+
     if (h.reasons.length === 0) {
       reasonsEl.innerHTML = `<div class="health-ok">✓ No issues detected — your architecture is clean!</div>`;
       return;
     }
 
-    const icons = { cycles: "🔄", isolated: "🏝", oversized: "📦", hubs: "🕸" };
+    const icons = { cycles: "🔄", isolated: "🏝", oversized: "📦", hubs: "🕸", god: "👁" };
     h.reasons.forEach((r) => {
       const div = document.createElement("div");
       div.className = "health-reason";
+
+      const makeBadge = (s) => {
+        const parts = [];
+        if (s.loc != null) parts.push(`${s.loc} LOC`);
+        if (s.in  != null) parts.push(`${s.in} importers`);
+        if (s.out != null) parts.push(`${s.out} deps`);
+        return parts.length ? `<span class="health-file-badge">${parts.join(" · ")}</span>` : "";
+      };
+
+      const SHOW = 5;
+      const id = `hr-${Math.random().toString(36).slice(2)}`;
+      let fileListHtml = "";
+      if (r.samples) {
+        const rows = r.samples.map((s) => {
+          const p = s.path || s;
+          return `<div class="health-file-row" data-path="${p}" title="Open in graph"><span>${p}</span>${makeBadge(s)}</div>`;
+        }).join("");
+        const collapsed = r.samples.length > SHOW;
+        fileListHtml = `<div class="health-file-list${collapsed ? " health-file-list--collapsed" : ""}" id="${id}">${rows}</div>${
+          collapsed
+            ? `<button class="health-show-more" onclick="
+                var el=document.getElementById('${id}');
+                var btn=this;
+                if(el.classList.contains('health-file-list--collapsed')){
+                  el.classList.remove('health-file-list--collapsed');
+                  btn.textContent='show less';
+                } else {
+                  el.classList.add('health-file-list--collapsed');
+                  btn.textContent='show all ${r.samples.length} files';
+                }
+              ">show all ${r.samples.length} files</button>`
+            : ""
+        }`;
+      }
+
       div.innerHTML = `
         <span class="health-reason-icon">${icons[r.kind] || "⚠️"}</span>
         <div class="health-reason-body">
           <div class="health-reason-msg">${r.msg}</div>
-          ${
-            r.samples
-              ? `<div class="health-reason-detail">${r.samples
-                  .slice(0, 3)
-                  .map((s) => s.path || s)
-                  .join(" · ")}</div>`
-              : ""
-          }
+          ${fileListHtml}
         </div>
         <span class="health-penalty">−${r.penalty} pts</span>
       `;
+
+      div.querySelectorAll(".health-file-row[data-path]").forEach((row) => {
+        row.addEventListener("click", () => {
+          showHealthDrawer(row.dataset.path, r);
+        });
+      });
+
       reasonsEl.appendChild(div);
     });
+  }
+
+  // ── Health file drawer ────────────────────────────────────────
+  const healthDrawer  = document.getElementById("health-drawer");
+  const hdTitle       = document.getElementById("hd-title");
+  const hdMeta        = document.getElementById("hd-meta");
+  const hdBadge       = document.getElementById("hd-badge");
+  const hdBody        = document.getElementById("hd-body");
+
+  document.getElementById("hd-close")?.addEventListener("click", () => {
+    healthDrawer.hidden = true;
+  });
+
+  async function showHealthDrawer(filePath, reason) {
+    hdTitle.textContent = filePath;
+    hdMeta.textContent  = "";
+    hdBadge.innerHTML   = "";
+    hdBody.innerHTML    = `<div class="dim" style="font-size:12px">Loading…</div>`;
+    healthDrawer.hidden = false;
+
+    let data = { loc: 0, symbols: [], imports: { specs: [], details: [] } };
+    try {
+      data = await fetch(`/api/file/${encodeURIComponent(filePath)}`).then((r) => r.json());
+    } catch {}
+
+    const parts = [`${data.loc} lines`, `${data.symbols.length} symbols`, `${data.imports.specs.length} imports`];
+    hdMeta.textContent = parts.join(" · ");
+
+    const kindMeta = {
+      oversized: {
+        label: "Oversized file",
+        color: "var(--amber, #fbbf24)",
+        desc: "This file exceeds 500 lines of code. Large files are harder to review, test, and reason about. Consider splitting it into smaller focused modules.",
+      },
+      isolated: {
+        label: "Isolated file",
+        color: "var(--muted)",
+        desc: "Nothing imports this file and it imports nothing. It's disconnected from the rest of the codebase — it may be unused, a forgotten script, or needs to be wired in.",
+      },
+      hubs: {
+        label: "Coupling hub",
+        color: "var(--rose, #fb7185)",
+        desc: "This file has many importers and many dependencies. A change here can ripple widely. Consider breaking out shared logic into smaller, more focused modules.",
+      },
+      god: {
+        label: "God file",
+        color: "var(--rose, #fb7185)",
+        desc: "This file is both large and heavily imported — the worst combination. It concentrates too much logic and creates a high blast radius for any change.",
+      },
+    };
+    if (reason) {
+      const m = kindMeta[reason.kind] || { label: reason.kind, color: "var(--muted)", desc: "" };
+      hdBadge.innerHTML = `
+        <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);color:${m.color}">${m.label} · −${reason.penalty} pts</span>
+        ${m.desc ? `<p class="hd-desc">${m.desc}</p>` : ""}
+      `;
+    }
+
+    const sections = [];
+
+    if (data.symbols?.length) {
+      const items = data.symbols.slice(0, 30).map((s) =>
+        `<div class="hd-sym"><span class="sym-badge ${s.type === "function" ? "fn" : s.type === "class" ? "cls" : "other"}">${s.type?.[0] ?? "?"}</span><span class="hd-sym-name">${s.name}</span><span class="dim" style="font-size:10px;margin-left:auto">L${s.line}</span></div>`
+      ).join("");
+      sections.push(`<div class="hd-section"><div class="hd-section-title">Symbols (${data.symbols.length})</div><div class="hd-sym-list">${items}</div></div>`);
+    }
+
+    if (data.imports?.details?.length) {
+      const items = data.imports.details.slice(0, 20).map((imp) =>
+        `<div class="hd-import-row"><span class="hd-import-path">${imp.resolved || imp.spec}</span></div>`
+      ).join("");
+      sections.push(`<div class="hd-section"><div class="hd-section-title">Imports (${data.imports.details.length})</div>${items}</div>`);
+    }
+
+    hdBody.innerHTML = sections.length ? sections.join("") : `<div class="dim" style="font-size:12px">No detail available.</div>`;
   }
 
   // ── Impact tab ────────────────────────────────────────────────

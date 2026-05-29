@@ -399,9 +399,68 @@ body {
 .health-reason-icon { font-size: 18px; flex: none; margin-top: 1px; }
 .health-reason-body { flex: 1; }
 .health-reason-msg { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
-.health-reason-detail { font-size: 11px; color: var(--muted); font-family: ui-monospace, monospace; }
+.health-file-list {
+  margin-top: 8px; display: flex; flex-direction: column; gap: 3px;
+  max-height: 400px; overflow-y: auto;
+}
+.health-file-list--collapsed { max-height: calc(5 * 26px); overflow: hidden; }
+.health-file-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-size: 11px; color: var(--muted); font-family: ui-monospace, monospace;
+  padding: 3px 8px; border-radius: 4px; background: rgba(255,255,255,0.04);
+  cursor: pointer; transition: background 0.15s;
+  min-width: 0;
+}
+.health-file-row:hover { background: rgba(255,255,255,0.09); color: var(--fg, #e2e8f0); }
+.health-file-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.health-file-badge {
+  flex: none; font-size: 10px; color: var(--muted); opacity: 0.75;
+  background: rgba(255,255,255,0.06); border-radius: 3px; padding: 1px 5px;
+  white-space: nowrap;
+}
+.health-show-more {
+  background: none; border: none; padding: 2px 0 0; font-size: 11px;
+  color: var(--accent, #60a5fa); cursor: pointer;
+  font-family: ui-monospace, monospace; text-decoration: underline;
+}
+.health-sparkline-wrap {
+  margin-bottom: 14px; border-radius: 10px;
+  border: 1px solid var(--border); background: rgba(255,255,255,0.02);
+  overflow: hidden;
+}
+.sh-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px 6px; border-bottom: 1px solid var(--border);
+}
+.sh-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.sh-count { font-size: 11px; color: var(--muted); opacity: 0.6; }
+.sh-list { display: flex; flex-direction: column; }
+.sh-row {
+  display: grid; grid-template-columns: 34px 20px 1fr auto;
+  align-items: center; gap: 8px;
+  padding: 6px 14px; font-size: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.sh-row:last-child { border-bottom: none; }
+.sh-row--current { background: rgba(255,255,255,0.04); }
+.sh-score { font-weight: 700; font-variant-numeric: tabular-nums; }
+.sh-grade { font-size: 11px; font-weight: 600; opacity: 0.8; }
+.sh-time { font-size: 11px; color: var(--muted); }
+.sh-delta { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; justify-self: end; }
+.sh-delta--up   { color: #6ee7b7; }
+.sh-delta--down { color: #fb7185; }
+.sh-delta--neutral { color: var(--muted); }
 .health-penalty { font-size: 11px; color: var(--rose); font-weight: 600; margin-left: auto; flex: none; }
 .health-ok { padding: 20px; text-align: center; color: var(--emerald); font-size: 14px; }
+
+/* ── Health drawer ───────────────────────────────────────────── */
+.hd-section { display: flex; flex-direction: column; gap: 4px; }
+.hd-section-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.hd-sym-list { display: flex; flex-direction: column; gap: 2px; }
+.hd-sym { display: flex; align-items: center; gap: 8px; padding: 3px 6px; border-radius: 4px; background: rgba(255,255,255,0.03); font-size: 12px; }
+.hd-sym-name { font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hd-import-row { font-size: 11px; font-family: ui-monospace, monospace; color: var(--muted); padding: 3px 6px; border-radius: 4px; background: rgba(255,255,255,0.03); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hd-desc { margin: 10px 0 0; font-size: 12px; color: var(--muted); line-height: 1.6; }
 
 /* ── Impact analysis ─────────────────────────────────────────── */
 .impact-input-row { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 20px; }

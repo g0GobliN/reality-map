@@ -557,7 +557,11 @@ function buildInsights(root, files, fileEdges, fileLoc, externalCounts) {
     .sort((a, b) => b.loc - a.loc)
     .slice(0, 30);
 
-  const isolatedInternal = files.filter((f) => (incoming.get(f) || 0) === 0 && (outgoing.get(f) || 0) === 0).length;
+  const isolatedInternalList = files
+    .filter((f) => (incoming.get(f) || 0) === 0 && (outgoing.get(f) || 0) === 0)
+    .map((f) => ({ path: rel(f), loc: fileLoc.get(f) || 0 }))
+    .sort((a, b) => b.loc - a.loc);
+  const isolatedInternal = isolatedInternalList.length;
 
   const filesIndex = [...files]
     .map((f) => ({
@@ -578,6 +582,7 @@ function buildInsights(root, files, fileEdges, fileLoc, externalCounts) {
       uniquePackages: externalCounts.size,
       loc: [...fileLoc.values()].reduce((a, b) => a + b, 0),
       isolatedInternalFiles: isolatedInternal,
+      isolatedInternalList,
     },
     topFilesByLoc,
     topImported,
