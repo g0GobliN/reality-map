@@ -141,46 +141,142 @@ async function walk(root, opts = {}) {
   return out;
 }
 
-const IMPORT_RE = /(?:import|export)\s+(?:[^'"`;]*?\sfrom\s+)?["']([^"']+)["']|require\(\s*["']([^"']+)["']\s*\)|import\(\s*["']([^"']+)["']\s*\)|from\s+([^"'\s]+)\s+import\s+[^;]+|import\s+([^"'\s]+)|use\s+([^;]+);|import\s*\(\s*[^)]*\)/g;
-
 function extractImports(src, filePath = "") {
   const ext = path.extname(filePath).toLowerCase();
-  const isJsLike = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"].includes(ext);
+  if (ext === ".py") return extractPythonImports(src);
+  if (ext === ".go") return extractGoImports(src);
+  if (ext === ".rs") return extractRustImports(src);
+  return extractJsImports(src);
+}
 
+function extractJsImports(src) {
+  const JS_RE = /(?:import|export)\s+(?:[^'"`;]*?\sfrom\s+)?["']([^"']+)["']|require\(\s*["']([^"']+)["']\s*\)|import\(\s*["']([^"']+)["']\s*\)/g;
   const found = new Set();
   const details = [];
   let m;
-  IMPORT_RE.lastIndex = 0;
+  JS_RE.lastIndex = 0;
+  while ((m = JS_RE.exec(src))) {
+    const spec = m[1] || m[2] || m[3];
+    if (!spec || spec.includes('"') || spec.includes("'") || spec.includes("`")) continue;
+    found.add(spec);
+    const lineNum = src.substring(0, m.index).split("\n").length;
+    details.push({ spec, line: lineNum, statement: m[0] });
+  }
+  return { specs: Array.from(found), details };
+}
 
-  while ((m = IMPORT_RE.exec(src))) {
-    let spec = m[1] || m[2] || m[3] || m[4] || m[5] || m[6];
-
-    // Group 5 is the generic 'import identifier' (e.g. Python 'import math')
-    // In JS/TS, this pattern is usually a false positive inside a string or comment
-    // unless it's followed by 'from' (handled by group 1) or is a side-effect import (handled by group 1).
-    if (m[5] && isJsLike) continue;
-
-    if (m[7]) {
-      // Go import block: extract individual imports
-      const block = m[7];
-      const goImportRe = /"([^"]+)"/g;
-      let subM;
-      while ((subM = goImportRe.exec(block))) {
-        found.add(subM[1]);
-        const lineNum = src.substring(0, m.index).split('\n').length;
-        details.push({ spec: subM[1], line: lineNum, statement: m[0] });
+function extractPythonImports(src) {
+  const found = new Set();
+  const details = [];
+  const lines = src.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line || line.startsWith("#")) continue;
+    // from .module import x  /  from . import x, y  /  from .. import z
+    const relMatch = /^from\s+(\.+)([a-zA-Z0-9_.]*)\s+import\s+([a-zA-Z0-9_*,\s]+)/.exec(line);
+    if (relMatch) {
+      const dotCount = relMatch[1].length;
+      const mod = relMatch[2] || "";
+      const upPath = dotCount > 1 ? "../".repeat(dotCount - 1) : "./";
+      if (mod) {
+        const spec = upPath + mod.replace(/\./g, "/");
+        found.add(spec);
+        details.push({ spec, line: i + 1, statement: line });
+      } else {
+        for (const name of relMatch[3].split(",")) {
+          const n = name.trim().split(/\s+as\s+/)[0].trim();
+          if (n && n !== "*") {
+            const spec = upPath + n;
+            found.add(spec);
+            details.push({ spec, line: i + 1, statement: line });
+          }
+        }
       }
       continue;
     }
-
-    if (spec) {
-      // Basic sanitization: if it looks like it has quotes or weird chars, skip it
-      if (spec.includes('"') || spec.includes("'") || spec.includes("`")) continue;
-
+    // from module import x (absolute)
+    const fromMatch = /^from\s+([a-zA-Z0-9_][a-zA-Z0-9_.]*)\s+import/.exec(line);
+    if (fromMatch) {
+      const spec = fromMatch[1].replace(/\./g, "/");
       found.add(spec);
-      const lineNum = src.substring(0, m.index).split('\n').length;
+      details.push({ spec, line: i + 1, statement: line });
+      continue;
+    }
+    // import module [as alias], module2
+    const impMatch = /^import\s+(.+)$/.exec(line);
+    if (impMatch) {
+      for (const part of impMatch[1].split(",")) {
+        const mod = part.trim().split(/\s+as\s+/)[0].trim();
+        if (mod && /^[a-zA-Z0-9_.]+$/.test(mod)) {
+          const spec = mod.replace(/\./g, "/");
+          found.add(spec);
+          details.push({ spec, line: i + 1, statement: line });
+        }
+      }
+    }
+  }
+  return { specs: Array.from(found), details };
+}
+
+function extractGoImports(src) {
+  const found = new Set();
+  const details = [];
+  let m;
+  // Block imports: import ( "pkg" ... )
+  const blockRe = /import\s*\(([\s\S]*?)\)/g;
+  while ((m = blockRe.exec(src))) {
+    const lineBase = src.substring(0, m.index).split("\n").length;
+    const quotedRe = /"([^"]+)"/g;
+    let q;
+    while ((q = quotedRe.exec(m[1]))) {
+      found.add(q[1]);
+      details.push({ spec: q[1], line: lineBase, statement: q[0] });
+    }
+  }
+  // Single imports: import "pkg"
+  const singleRe = /^import\s+"([^"]+)"/gm;
+  while ((m = singleRe.exec(src))) {
+    if (!found.has(m[1])) {
+      found.add(m[1]);
+      const lineNum = src.substring(0, m.index).split("\n").length;
+      details.push({ spec: m[1], line: lineNum, statement: m[0] });
+    }
+  }
+  return { specs: Array.from(found), details };
+}
+
+function extractRustImports(src) {
+  const found = new Set();
+  const details = [];
+  let m;
+  // use super::x  /  use self::y  — convert to relative paths for resolution
+  const useRe = /^use\s+([\w:{}*, \n]+);/gm;
+  while ((m = useRe.exec(src))) {
+    const raw = m[1].trim();
+    const top = raw.split("::")[0];
+    let spec = null;
+    if (top === "super") {
+      const rest = raw.slice("super::".length).split("::")[0].replace(/[{} ]/g, "");
+      spec = rest ? "../" + rest : "..";
+    } else if (top === "self") {
+      const rest = raw.slice("self::".length).split("::")[0].replace(/[{} ]/g, "");
+      spec = rest ? "./" + rest : ".";
+    } else if (top !== "crate" && top !== "std" && top !== "core" && top !== "alloc") {
+      spec = top;
+    }
+    if (spec) {
+      found.add(spec);
+      const lineNum = src.substring(0, m.index).split("\n").length;
       details.push({ spec, line: lineNum, statement: m[0] });
     }
+  }
+  // mod declarations: `mod foo;` is the real Rust file dependency — foo.rs or foo/mod.rs
+  const modRe = /^mod\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*;/gm;
+  while ((m = modRe.exec(src))) {
+    const spec = "./" + m[1];
+    found.add(spec);
+    const lineNum = src.substring(0, m.index).split("\n").length;
+    details.push({ spec, line: lineNum, statement: m[0] });
   }
   return { specs: Array.from(found), details };
 }
@@ -289,6 +385,8 @@ function resolveRel(fromFile, spec, allFiles, codeExtSet) {
     base,
     ...[...extSet].map((e) => base + e),
     ...[...extSet].map((e) => path.join(base, "index" + e)),
+    path.join(base, "__init__.py"), // Python package
+    path.join(base, "mod.rs"),      // Rust module
   ];
   for (const c of candidates) if (allFiles.has(c)) return c;
   return null;
@@ -494,6 +592,55 @@ function buildInsights(root, files, fileEdges, fileLoc, externalCounts) {
   };
 }
 
+function loadGoModuleName(root) {
+  try {
+    const raw = fs.readFileSync(path.join(root, "go.mod"), "utf8");
+    const m = /^module\s+(\S+)/m.exec(raw);
+    return m ? m[1] : null;
+  } catch { return null; }
+}
+
+function loadPythonSrcDirs(root, files) {
+  try {
+    const raw = fs.readFileSync(path.join(root, "pyproject.toml"), "utf8");
+    const m = /where\s*=\s*\[["']([^"']+)["']\]/.exec(raw)
+           || /sources\s*=\s*["']([^"']+)["']/.exec(raw);
+    if (m) return [m[1]];
+  } catch {}
+  try {
+    const raw = fs.readFileSync(path.join(root, "setup.cfg"), "utf8");
+    const m = /package_dir\s*=\s*\n?\s*=\s*(\S+)/.exec(raw);
+    if (m) return [m[1]];
+  } catch {}
+  // Auto-detect src layout by presence of __init__.py under src/
+  const hasSrcLayout = files.some(f => {
+    const rel = path.relative(root, f).split(path.sep).join("/");
+    return rel.startsWith("src/") && rel.endsWith("__init__.py");
+  });
+  return hasSrcLayout ? ["", "src"] : [""];
+}
+
+function resolveGoPackageEdges(importPath, goModuleName, root, allFiles) {
+  if (!goModuleName || !importPath.startsWith(goModuleName + "/")) return [];
+  const pkgRelDir = importPath.slice(goModuleName.length + 1);
+  const absPkgDir = path.join(root, pkgRelDir);
+  return allFiles.filter(f =>
+    path.extname(f) === ".go" &&
+    !f.endsWith("_test.go") &&
+    path.dirname(f) === absPkgDir
+  );
+}
+
+function resolvePythonAbsoluteEdge(spec, root, pythonSrcDirs, fileSet) {
+  for (const srcDir of pythonSrcDirs) {
+    const base = srcDir ? path.join(root, srcDir, spec) : path.join(root, spec);
+    for (const c of [base + ".py", path.join(base, "__init__.py")]) {
+      if (fileSet.has(c)) return c;
+    }
+  }
+  return null;
+}
+
 async function scanProject(root, opts = {}) {
   const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : () => { };
   const maxDepth = Math.max(1, Math.min(5, Number(opts.maxDepth ?? 3)));
@@ -525,6 +672,8 @@ async function scanProject(root, opts = {}) {
   onProgress({ phase: "discovered", files: files.length });
   const fileSet = new Set(files);
   const gitTimes = getGitTimestamps(root);
+  const goModuleName = loadGoModuleName(root);
+  const pythonSrcDirs = loadPythonSrcDirs(root, files);
 
   const fileEdges = [];
   const fileImports = new Map();
@@ -575,6 +724,7 @@ async function scanProject(root, opts = {}) {
     const symbols = extractFunctionsAndClasses(src, f);
     fileSymbols.set(f, symbols);
 
+    const ext = path.extname(f).toLowerCase();
     for (const s of importData.specs) {
       if (s.startsWith(".") || s.startsWith("/")) {
         const tgt = resolveRel(f, s, fileSet, codeExtSet);
@@ -584,8 +734,21 @@ async function scanProject(root, opts = {}) {
         if (tgt && tgt !== f) {
           fileEdges.push([f, tgt]);
         } else {
-          const pkg = s.startsWith("@") ? s.split("/").slice(0, 2).join("/") : s.split("/")[0];
-          externalCounts.set(pkg, (externalCounts.get(pkg) || 0) + 1);
+          let internal = false;
+          if (ext === ".go" && goModuleName) {
+            const pkgFiles = resolveGoPackageEdges(s, goModuleName, root, files);
+            if (pkgFiles.length) {
+              for (const p of pkgFiles) if (p !== f) fileEdges.push([f, p]);
+              internal = true;
+            }
+          } else if (ext === ".py") {
+            const pyTgt = resolvePythonAbsoluteEdge(s, root, pythonSrcDirs, fileSet);
+            if (pyTgt && pyTgt !== f) { fileEdges.push([f, pyTgt]); internal = true; }
+          }
+          if (!internal) {
+            const pkg = s.startsWith("@") ? s.split("/").slice(0, 2).join("/") : s.split("/")[0];
+            externalCounts.set(pkg, (externalCounts.get(pkg) || 0) + 1);
+          }
         }
       }
     }
@@ -707,7 +870,7 @@ async function scanProject(root, opts = {}) {
         const relParts = path.relative(root, f).split(path.sep);
         const inWebAssetDir = relParts.some((p) => WEB_ASSET_DIRS.has(p));
         const ext = path.extname(f).toLowerCase();
-        const canDetectDead = new Set([".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".vue", ".svelte", ".astro"]).has(ext);
+        const canDetectDead = new Set([".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts", ".vue", ".svelte", ".astro", ".py", ".go", ".rs"]).has(ext);
         if (isOrphan && !isConfigOnly && !inWebAssetDir && canDetectDead && !(fileIncoming.get(f) > 0)) {
           issues.push("dead-code");
         }
@@ -766,9 +929,21 @@ async function scanProject(root, opts = {}) {
     onProgress({ phase: "depth_ready", depth });
   }
 
+  // Build a pre-resolved edge map so downstream (deadcode, unreachable) don't have to
+  // re-implement Go module / Python absolute / Rust mod resolution logic.
+  const resolvedEdgesMap = {};
+  for (const [from, to] of fileEdges) {
+    const fromRel = path.relative(root, from).split(path.sep).join("/");
+    const toRel = path.relative(root, to).split(path.sep).join("/");
+    if (!resolvedEdgesMap[fromRel]) resolvedEdgesMap[fromRel] = [];
+    if (!resolvedEdgesMap[fromRel].includes(toRel)) resolvedEdgesMap[fromRel].push(toRel);
+  }
+
   return {
     root,
     generatedAt: new Date().toISOString(),
+    goModuleName: goModuleName || null,
+    pythonSrcDirs,
     stats: {
       files: files.length,
       loc: totalLoc,
@@ -782,6 +957,7 @@ async function scanProject(root, opts = {}) {
       symbols: Object.fromEntries([...fileSymbols.entries()].map(([k, v]) => [path.relative(root, k).split(path.sep).join("/"), v])),
       loc: Object.fromEntries([...fileLoc.entries()].map(([k, v]) => [path.relative(root, k).split(path.sep).join("/"), v])),
       lastModified: Object.fromEntries([...fileGit.entries()].map(([k, v]) => [path.relative(root, k).split(path.sep).join("/"), v])),
+      resolvedEdges: resolvedEdgesMap,
     },
   };
 }
