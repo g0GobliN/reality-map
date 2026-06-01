@@ -13,8 +13,11 @@ const NAV_LINKS = [
   { label: "Product", hash: "product" },
   { label: "Architecture", hash: "architecture" },
   { label: "Heatmap", hash: "heatmap" },
-  { label: "Changelog", hash: "changelog" },
-  { label: "Docs", hash: "local-first" },
+] as const;
+
+const EXTERNAL_NAV_LINKS = [
+  { label: "Changelog", href: "https://github.com/g0GobliN/reality-map/releases" },
+  { label: "Docs", href: "https://github.com/g0GobliN/reality-map#readme" },
 ] as const;
 
 export function Nav() {
@@ -33,6 +36,17 @@ export function Nav() {
               <a
                 key={hash}
                 href={`#${hash}`}
+                className="text-sm text-muted-foreground transition hover:text-foreground"
+              >
+                {label}
+              </a>
+            ))}
+            {EXTERNAL_NAV_LINKS.map(({ label, href }) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-sm text-muted-foreground transition hover:text-foreground"
               >
                 {label}
@@ -82,6 +96,18 @@ export function Nav() {
                     <a
                       key={hash}
                       href={`#${hash}`}
+                      className="rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+                      onClick={() => setMobileOpen(false)}
+                    >
+                      {label}
+                    </a>
+                  ))}
+                  {EXTERNAL_NAV_LINKS.map(({ label, href }) => (
+                    <a
+                      key={label}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
                       onClick={() => setMobileOpen(false)}
                     >

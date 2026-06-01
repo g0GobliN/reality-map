@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -754,11 +754,41 @@ function Footer() {
       <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-6 px-6 py-10 md:flex-row md:items-center">
         <Logo />
         <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm text-muted-foreground">
-          {["Docs", "Changelog", "GitHub", "Discord", "Privacy"].map((l) => (
-            <a key={l} href="#" className="transition hover:text-foreground">
-              {l}
-            </a>
-          ))}
+          <a
+            href="https://github.com/g0GobliN/reality-map#readme"
+            className="transition hover:text-foreground"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Docs
+          </a>
+          <a
+            href="https://github.com/g0GobliN/reality-map/releases"
+            className="transition hover:text-foreground"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Changelog
+          </a>
+          <a
+            href="https://github.com/g0GobliN/reality-map"
+            className="transition hover:text-foreground"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GitHub
+          </a>
+          <a
+            href="https://g0.monster"
+            className="transition hover:text-foreground"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Portfolio
+          </a>
+          <Link to="/privacy" className="transition hover:text-foreground">
+            Privacy
+          </Link>
         </div>
         <div className="font-mono text-[11px] text-muted-foreground">
           © 2026 RealityMap · local-first
