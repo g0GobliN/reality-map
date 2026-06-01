@@ -9,15 +9,19 @@ const { version } = JSON.parse(readFileSync("./package.json", "utf-8")) as { ver
 // Serve /demo and /demo/ as the static dashboard in dev mode.
 // In production this is handled by the Vercel rewrite in vercel.json.
 function demoDevPlugin(): Plugin {
+  const rewrite = (req: { url?: string }, _res: unknown, next: () => void) => {
+    if (req.url === "/demo" || req.url === "/demo/") {
+      req.url = "/demo/index.html";
+    }
+    next();
+  };
   return {
     name: "demo-dev-index",
     configureServer(server) {
-      server.middlewares.use((req, _res, next) => {
-        if (req.url === "/demo" || req.url === "/demo/") {
-          req.url = "/demo/index.html";
-        }
-        next();
-      });
+      server.middlewares.use(rewrite);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(rewrite);
     },
   };
 }
