@@ -133,7 +133,7 @@ async function main() {
     "legacy/auth-v1/package.json",
     "legacy/billing-v1/index.js",
     "legacy/billing-v1/paypal.js",
-    "legacy/billing-v1/package.json"
+    "legacy/billing-v1/package.json",
   ];
 
   const nowSec = Math.floor(Date.now() / 1000);
@@ -376,13 +376,14 @@ function oldMD5Hash(data) {
   return crypto.createHash('md5').update(data).digest('hex');
 }
 
-module.exports = { oldMD5Hash };`
+module.exports = { oldMD5Hash };`,
   };
 
   // Add dummy previews for everything else
   for (const f of allFiles) {
     if (!previews[f]) {
-      previews[f] = `// Mock implementation of ${f}\n// Synthesized for RealityMap Enterprise Showcase\n\nconsole.log("Loading module ${f}...");`;
+      previews[f] =
+        `// Mock implementation of ${f}\n// Synthesized for RealityMap Enterprise Showcase\n\nconsole.log("Loading module ${f}...");`;
     }
   }
 
@@ -409,9 +410,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 3600,
         fanIn: 2,
         fanOut: 3,
-        allPaths: allFiles.filter(f => f.startsWith("apps/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("apps/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("apps/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("apps/")),
+        fileIssues: {},
       },
       {
         id: "services",
@@ -430,9 +431,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 7200,
         fanIn: 3,
         fanOut: 4,
-        allPaths: allFiles.filter(f => f.startsWith("services/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("services/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("services/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("services/")),
+        fileIssues: {},
       },
       {
         id: "packages",
@@ -451,9 +452,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 1800,
         fanIn: 4,
         fanOut: 2,
-        allPaths: allFiles.filter(f => f.startsWith("packages/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("packages/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("packages/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("packages/")),
+        fileIssues: {},
       },
       {
         id: "infrastructure",
@@ -472,9 +473,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 86400,
         fanIn: 1,
         fanOut: 3,
-        allPaths: allFiles.filter(f => f.startsWith("infrastructure/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("infrastructure/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("infrastructure/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("infrastructure/")),
+        fileIssues: {},
       },
       {
         id: "legacy",
@@ -493,10 +494,10 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 30 * 24 * 3600,
         fanIn: 1,
         fanOut: 0,
-        allPaths: allFiles.filter(f => f.startsWith("legacy/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("legacy/")),
-        fileIssues: {}
-      }
+        allPaths: allFiles.filter((f) => f.startsWith("legacy/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("legacy/")),
+        fileIssues: {},
+      },
     ],
     edges: [
       { id: "e1", source: "apps", target: "services", weight: 4 },
@@ -511,8 +512,8 @@ module.exports = { oldMD5Hash };`
     topExternal: [
       { name: "react", count: 8 },
       { name: "lodash", count: 12 },
-      { name: "fastapi", count: 3 }
-    ]
+      { name: "fastapi", count: 3 },
+    ],
   };
 
   // Construct Depth 2
@@ -538,9 +539,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 3600,
         fanIn: 0,
         fanOut: 2,
-        allPaths: allFiles.filter(f => f.startsWith("apps/storefront/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("apps/storefront/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("apps/storefront/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("apps/storefront/")),
+        fileIssues: {},
       },
       {
         id: "apps/admin-dashboard",
@@ -559,9 +560,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 7200,
         fanIn: 0,
         fanOut: 2,
-        allPaths: allFiles.filter(f => f.startsWith("apps/admin-dashboard/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("apps/admin-dashboard/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("apps/admin-dashboard/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("apps/admin-dashboard/")),
+        fileIssues: {},
       },
       {
         id: "services/api-gateway",
@@ -580,9 +581,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 1800,
         fanIn: 2,
         fanOut: 3,
-        allPaths: allFiles.filter(f => f.startsWith("services/api-gateway/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("services/api-gateway/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("services/api-gateway/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("services/api-gateway/")),
+        fileIssues: {},
       },
       {
         id: "services/auth-service",
@@ -601,9 +602,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 86400,
         fanIn: 1,
         fanOut: 1,
-        allPaths: allFiles.filter(f => f.startsWith("services/auth-service/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("services/auth-service/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("services/auth-service/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("services/auth-service/")),
+        fileIssues: {},
       },
       {
         id: "services/payment-service",
@@ -622,9 +623,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 7200,
         fanIn: 1,
         fanOut: 1,
-        allPaths: allFiles.filter(f => f.startsWith("services/payment-service/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("services/payment-service/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("services/payment-service/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("services/payment-service/")),
+        fileIssues: {},
       },
       {
         id: "services/order-service",
@@ -643,9 +644,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 1800,
         fanIn: 1,
         fanOut: 2,
-        allPaths: allFiles.filter(f => f.startsWith("services/order-service/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("services/order-service/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("services/order-service/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("services/order-service/")),
+        fileIssues: {},
       },
       {
         id: "packages/shared-ui",
@@ -664,9 +665,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 1800,
         fanIn: 3,
         fanOut: 1,
-        allPaths: allFiles.filter(f => f.startsWith("packages/shared-ui/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("packages/shared-ui/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("packages/shared-ui/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("packages/shared-ui/")),
+        fileIssues: {},
       },
       {
         id: "packages/db-client",
@@ -685,9 +686,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 1800,
         fanIn: 3,
         fanOut: 0,
-        allPaths: allFiles.filter(f => f.startsWith("packages/db-client/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("packages/db-client/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("packages/db-client/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("packages/db-client/")),
+        fileIssues: {},
       },
       {
         id: "packages/utils-lib",
@@ -706,9 +707,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 86400,
         fanIn: 2,
         fanOut: 0,
-        allPaths: allFiles.filter(f => f.startsWith("packages/utils-lib/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("packages/utils-lib/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("packages/utils-lib/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("packages/utils-lib/")),
+        fileIssues: {},
       },
       {
         id: "infrastructure/terraform",
@@ -727,9 +728,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 86400,
         fanIn: 0,
         fanOut: 2,
-        allPaths: allFiles.filter(f => f.startsWith("infrastructure/terraform/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("infrastructure/terraform/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("infrastructure/terraform/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("infrastructure/terraform/")),
+        fileIssues: {},
       },
       {
         id: "infrastructure/docker",
@@ -748,9 +749,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 86400,
         fanIn: 0,
         fanOut: 1,
-        allPaths: allFiles.filter(f => f.startsWith("infrastructure/docker/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("infrastructure/docker/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("infrastructure/docker/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("infrastructure/docker/")),
+        fileIssues: {},
       },
       {
         id: "legacy/auth-v1",
@@ -769,9 +770,9 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 45 * 24 * 3600,
         fanIn: 1,
         fanOut: 0,
-        allPaths: allFiles.filter(f => f.startsWith("legacy/auth-v1/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("legacy/auth-v1/")),
-        fileIssues: {}
+        allPaths: allFiles.filter((f) => f.startsWith("legacy/auth-v1/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("legacy/auth-v1/")),
+        fileIssues: {},
       },
       {
         id: "legacy/billing-v1",
@@ -790,10 +791,10 @@ module.exports = { oldMD5Hash };`
         lastModified: nowSec - 60 * 24 * 3600,
         fanIn: 0,
         fanOut: 0,
-        allPaths: allFiles.filter(f => f.startsWith("legacy/billing-v1/")),
-        pathsPreview: allFiles.filter(f => f.startsWith("legacy/billing-v1/")),
-        fileIssues: {}
-      }
+        allPaths: allFiles.filter((f) => f.startsWith("legacy/billing-v1/")),
+        pathsPreview: allFiles.filter((f) => f.startsWith("legacy/billing-v1/")),
+        fileIssues: {},
+      },
     ],
     edges: [
       { id: "e0", source: "apps/storefront", target: "services/api-gateway", weight: 3 },
@@ -811,14 +812,14 @@ module.exports = { oldMD5Hash };`
       { id: "e12", source: "infrastructure/terraform", target: "packages/db-client", weight: 1 },
       { id: "e13", source: "infrastructure/terraform", target: "services/api-gateway", weight: 1 },
       { id: "e14", source: "infrastructure/docker", target: "services/api-gateway", weight: 1 },
-      { id: "e15", source: "legacy/auth-v1", target: "packages/utils-lib", weight: 1 }
+      { id: "e15", source: "legacy/auth-v1", target: "packages/utils-lib", weight: 1 },
     ],
     cycles: [["services/api-gateway", "packages/shared-ui"]],
     topExternal: [
       { name: "react", count: 8 },
       { name: "lodash", count: 12 },
-      { name: "fastapi", count: 3 }
-    ]
+      { name: "fastapi", count: 3 },
+    ],
   };
 
   // Construct Depth 3
@@ -829,15 +830,20 @@ module.exports = { oldMD5Hash };`
     nodes: allFiles.map((f, idx) => {
       const parts = f.split("/");
       const rootDir = parts[0];
-      const tone = rootDir === "apps" ? "violet"
-        : rootDir === "services" ? "emerald"
-        : rootDir === "packages" ? "cyan"
-        : rootDir === "infrastructure" ? "rose"
-        : "amber";
-      
+      const tone =
+        rootDir === "apps"
+          ? "violet"
+          : rootDir === "services"
+            ? "emerald"
+            : rootDir === "packages"
+              ? "cyan"
+              : rootDir === "infrastructure"
+                ? "rose"
+                : "amber";
+
       const isLegacy = rootDir === "legacy";
       const isEntry = f === "apps/storefront/src/pages/index.tsx";
-      
+
       // Calculate dynamic positions seeded in grid-like positions
       const x = 100 + (idx % 10) * 80;
       const y = 80 + Math.floor(idx / 10) * 120;
@@ -861,29 +867,89 @@ module.exports = { oldMD5Hash };`
         fanOut: 1,
         allPaths: [f],
         pathsPreview: [f],
-        fileIssues: {}
+        fileIssues: {},
       };
     }),
     edges: [
-      { id: "e0", source: "apps/storefront/src/pages/index.tsx", target: "packages/shared-ui/src/Button.tsx", weight: 1 },
-      { id: "e1", source: "apps/storefront/src/pages/index.tsx", target: "packages/shared-ui/src/Modal.tsx", weight: 1 },
-      { id: "e2", source: "apps/storefront/src/pages/index.tsx", target: "apps/storefront/src/hooks/useCart.ts", weight: 1 },
-      { id: "e3", source: "apps/storefront/src/components/ProductGrid.tsx", target: "packages/shared-ui/src/Button.tsx", weight: 1 },
-      { id: "e4", source: "apps/admin-dashboard/src/pages/Dashboard.tsx", target: "packages/shared-ui/src/Button.tsx", weight: 1 },
-      { id: "e5", source: "services/api-gateway/src/main.ts", target: "services/api-gateway/src/middleware/auth.ts", weight: 1 },
-      { id: "e6", source: "services/api-gateway/src/middleware/auth.ts", target: "packages/shared-ui/src/Button.tsx", weight: 1 }, // Cycle trigger
-      { id: "e7", source: "services/api-gateway/src/controllers/gateway.controller.ts", target: "packages/db-client/src/index.ts", weight: 1 },
-      { id: "e8", source: "services/auth-service/main.go", target: "services/auth-service/token/jwt.go", weight: 1 },
-      { id: "e9", source: "services/auth-service/main.go", target: "services/auth-service/db/session.go", weight: 1 },
-      { id: "e10", source: "services/payment-service/app.py", target: "services/payment-service/models/invoice.py", weight: 1 },
-      { id: "e11", source: "services/order-service/main.go", target: "packages/db-client/src/index.ts", weight: 1 }
+      {
+        id: "e0",
+        source: "apps/storefront/src/pages/index.tsx",
+        target: "packages/shared-ui/src/Button.tsx",
+        weight: 1,
+      },
+      {
+        id: "e1",
+        source: "apps/storefront/src/pages/index.tsx",
+        target: "packages/shared-ui/src/Modal.tsx",
+        weight: 1,
+      },
+      {
+        id: "e2",
+        source: "apps/storefront/src/pages/index.tsx",
+        target: "apps/storefront/src/hooks/useCart.ts",
+        weight: 1,
+      },
+      {
+        id: "e3",
+        source: "apps/storefront/src/components/ProductGrid.tsx",
+        target: "packages/shared-ui/src/Button.tsx",
+        weight: 1,
+      },
+      {
+        id: "e4",
+        source: "apps/admin-dashboard/src/pages/Dashboard.tsx",
+        target: "packages/shared-ui/src/Button.tsx",
+        weight: 1,
+      },
+      {
+        id: "e5",
+        source: "services/api-gateway/src/main.ts",
+        target: "services/api-gateway/src/middleware/auth.ts",
+        weight: 1,
+      },
+      {
+        id: "e6",
+        source: "services/api-gateway/src/middleware/auth.ts",
+        target: "packages/shared-ui/src/Button.tsx",
+        weight: 1,
+      }, // Cycle trigger
+      {
+        id: "e7",
+        source: "services/api-gateway/src/controllers/gateway.controller.ts",
+        target: "packages/db-client/src/index.ts",
+        weight: 1,
+      },
+      {
+        id: "e8",
+        source: "services/auth-service/main.go",
+        target: "services/auth-service/token/jwt.go",
+        weight: 1,
+      },
+      {
+        id: "e9",
+        source: "services/auth-service/main.go",
+        target: "services/auth-service/db/session.go",
+        weight: 1,
+      },
+      {
+        id: "e10",
+        source: "services/payment-service/app.py",
+        target: "services/payment-service/models/invoice.py",
+        weight: 1,
+      },
+      {
+        id: "e11",
+        source: "services/order-service/main.go",
+        target: "packages/db-client/src/index.ts",
+        weight: 1,
+      },
     ],
     cycles: [["services/api-gateway/src/middleware/auth.ts", "packages/shared-ui/src/Button.tsx"]],
     topExternal: [
       { name: "react", count: 8 },
       { name: "lodash", count: 12 },
-      { name: "fastapi", count: 3 }
-    ]
+      { name: "fastapi", count: 3 },
+    ],
   };
 
   // Compile final graph object
@@ -894,9 +960,9 @@ module.exports = { oldMD5Hash };`
     maxDepth: 3,
     scannedFilePaths: allFiles,
     graphsByDepth: {
-      "1": g1,
-      "2": g2,
-      "3": g3
+      1: g1,
+      2: g2,
+      3: g3,
     },
     insights: {
       summary: {
@@ -910,82 +976,92 @@ module.exports = { oldMD5Hash };`
           { path: "legacy/auth-v1/crypto.js", loc: 450 },
           { path: "legacy/billing-v1/paypal.js", loc: 320 },
           { path: "packages/utils-lib/src/hash.rs", loc: 220 },
-          { path: "apps/admin-dashboard/src/components/AnalyticsChart.tsx", loc: 150 }
-        ]
+          { path: "apps/admin-dashboard/src/components/AnalyticsChart.tsx", loc: 150 },
+        ],
       },
       topFilesByLoc: [
         { path: "services/api-gateway/src/controllers/gateway.controller.ts", loc: 950 },
         { path: "packages/db-client/src/index.ts", loc: 680 },
         { path: "packages/shared-ui/src/Button.tsx", loc: 620 },
         { path: "legacy/auth-v1/crypto.js", loc: 450 },
-        { path: "legacy/billing-v1/paypal.js", loc: 320 }
+        { path: "legacy/billing-v1/paypal.js", loc: 320 },
       ],
       topImported: [
         { path: "packages/shared-ui/src/Button.tsx", count: 8 },
         { path: "packages/db-client/src/index.ts", count: 5 },
-        { path: "packages/shared-ui/src/Modal.tsx", count: 4 }
+        { path: "packages/shared-ui/src/Modal.tsx", count: 4 },
       ],
       hubs: [
         { path: "packages/shared-ui/src/Button.tsx", in: 8, out: 2 },
-        { path: "packages/db-client/src/index.ts", in: 5, out: 1 }
+        { path: "packages/db-client/src/index.ts", in: 5, out: 1 },
       ],
       zeroInternalImporters: [
         { path: "legacy/auth-v1/crypto.js", loc: 450 },
         { path: "legacy/billing-v1/paypal.js", loc: 320 },
         { path: "packages/utils-lib/src/hash.rs", loc: 220 },
-        { path: "apps/admin-dashboard/src/components/AnalyticsChart.tsx", loc: 150 }
+        { path: "apps/admin-dashboard/src/components/AnalyticsChart.tsx", loc: 150 },
       ],
-      filesIndex: allFiles.map(f => ({
+      filesIndex: allFiles.map((f) => ({
         path: f,
         loc: f.includes("gateway.controller.ts") ? 950 : f.includes("Button.tsx") ? 620 : 150,
         ext: "." + f.split(".").pop(),
         importers: f.includes("Button.tsx") ? 8 : 1,
-        importees: 1
+        importees: 1,
       })),
       filesIndexCap: 100,
       filesIndexTruncated: false,
       externalPackages: [
         { name: "react", count: 8 },
         { name: "lodash", count: 12 },
-        { name: "fastapi", count: 3 }
+        { name: "fastapi", count: 3 },
       ],
       dirStats: [
         { dir: "apps", count: 7, loc: 15400 },
         { dir: "services", count: 14, loc: 22800 },
         { dir: "packages", count: 10, loc: 9600 },
         { dir: "infrastructure", count: 3, loc: 3200 },
-        { dir: "legacy", count: 6, loc: 4500 }
-      ]
+        { dir: "legacy", count: 6, loc: 4500 },
+      ],
     },
     fileDetails: {
       imports: {
         "apps/storefront/src/pages/index.tsx": {
-          specs: ["packages/shared-ui/src/Button.tsx", "packages/shared-ui/src/Modal.tsx", "apps/storefront/src/hooks/useCart.ts"],
+          specs: [
+            "packages/shared-ui/src/Button.tsx",
+            "packages/shared-ui/src/Modal.tsx",
+            "apps/storefront/src/hooks/useCart.ts",
+          ],
           details: [
-            { spec: "packages/shared-ui/src/Button.tsx", line: 2, statement: "import { Button } from '@enterprise/shared-ui'" },
-            { spec: "packages/shared-ui/src/Modal.tsx", line: 2, statement: "import { Modal } from '@enterprise/shared-ui'" }
-          ]
+            {
+              spec: "packages/shared-ui/src/Button.tsx",
+              line: 2,
+              statement: "import { Button } from '@enterprise/shared-ui'",
+            },
+            {
+              spec: "packages/shared-ui/src/Modal.tsx",
+              line: 2,
+              statement: "import { Modal } from '@enterprise/shared-ui'",
+            },
+          ],
         },
         "services/api-gateway/src/middleware/auth.ts": {
           specs: ["packages/shared-ui/src/Button.tsx"],
           details: [
-            { spec: "packages/shared-ui/src/Button.tsx", line: 2, statement: "import { Button } from '@enterprise/shared-ui'" }
-          ]
-        }
+            {
+              spec: "packages/shared-ui/src/Button.tsx",
+              line: 2,
+              statement: "import { Button } from '@enterprise/shared-ui'",
+            },
+          ],
+        },
       },
       symbols: {
         "apps/storefront/src/pages/index.tsx": [
-          { type: "function", name: "StorefrontIndex", line: 6 }
+          { type: "function", name: "StorefrontIndex", line: 6 },
         ],
-        "services/auth-service/main.go": [
-          { type: "function", name: "main", line: 10 }
-        ],
-        "services/payment-service/app.py": [
-          { type: "function", name: "process_charge", line: 16 }
-        ],
-        "packages/shared-ui/src/Button.tsx": [
-          { type: "const", name: "Button", line: 7 }
-        ]
+        "services/auth-service/main.go": [{ type: "function", name: "main", line: 10 }],
+        "services/payment-service/app.py": [{ type: "function", name: "process_charge", line: 16 }],
+        "packages/shared-ui/src/Button.tsx": [{ type: "const", name: "Button", line: 7 }],
       },
       loc: allFiles.reduce((acc, f) => {
         acc[f] = f.includes("gateway.controller.ts") ? 950 : f.includes("Button.tsx") ? 620 : 150;
@@ -995,8 +1071,8 @@ module.exports = { oldMD5Hash };`
         acc[f] = f.startsWith("legacy/") ? nowSec - 45 * 24 * 3600 : nowSec - 3600;
         return acc;
       }, {}),
-      resolvedEdges: []
-    }
+      resolvedEdges: [],
+    },
   };
 
   // Construct Health
@@ -1011,8 +1087,8 @@ module.exports = { oldMD5Hash };`
         msg: "2 circular dependency cycles detected at depth 2",
         samples: [
           { path: "services/api-gateway <-> packages/shared-ui" },
-          { path: "apps/storefront <-> packages/shared-ui" }
-        ]
+          { path: "apps/storefront <-> packages/shared-ui" },
+        ],
       },
       {
         kind: "isolated",
@@ -1023,8 +1099,8 @@ module.exports = { oldMD5Hash };`
         samples: [
           { path: "legacy/auth-v1/crypto.js", loc: 450 },
           { path: "legacy/billing-v1/paypal.js", loc: 320 },
-          { path: "packages/utils-lib/src/hash.rs", loc: 220 }
-        ]
+          { path: "packages/utils-lib/src/hash.rs", loc: 220 },
+        ],
       },
       {
         kind: "oversized",
@@ -1034,19 +1110,17 @@ module.exports = { oldMD5Hash };`
         samples: [
           { path: "services/api-gateway/src/controllers/gateway.controller.ts", loc: 950 },
           { path: "packages/db-client/src/index.ts", loc: 680 },
-          { path: "packages/shared-ui/src/Button.tsx", loc: 620 }
-        ]
+          { path: "packages/shared-ui/src/Button.tsx", loc: 620 },
+        ],
       },
       {
         kind: "god",
         count: 1,
         penalty: 5,
         msg: "1 god file(s) — large AND heavily imported",
-        samples: [
-          { path: "packages/shared-ui/src/Button.tsx", loc: 620, in: 8 }
-        ]
-      }
-    ]
+        samples: [{ path: "packages/shared-ui/src/Button.tsx", loc: 620, in: 8 }],
+      },
+    ],
   };
 
   // Construct Dead Code candidates
@@ -1060,35 +1134,35 @@ module.exports = { oldMD5Hash };`
         loc: 450,
         outgoing: 0,
         confidence: 95,
-        reason: "no internal importers · marked deprecated · legacy code"
+        reason: "no internal importers · marked deprecated · legacy code",
       },
       {
         path: "legacy/billing-v1/paypal.js",
         loc: 320,
         outgoing: 1,
         confidence: 90,
-        reason: "no active imports · dead endpoints"
+        reason: "no active imports · dead endpoints",
       },
       {
         path: "packages/utils-lib/src/hash.rs",
         loc: 220,
         outgoing: 0,
         confidence: 85,
-        reason: "unused module in Rust crate export"
+        reason: "unused module in Rust crate export",
       },
       {
         path: "apps/admin-dashboard/src/components/AnalyticsChart.tsx",
         loc: 150,
         outgoing: 2,
         confidence: 80,
-        reason: "no active references in React pages"
-      }
-    ]
+        reason: "no active references in React pages",
+      },
+    ],
   };
 
   // Construct Unreachable
   const unreachable = {
-    "apps": {
+    apps: {
       srcDir: "apps",
       seeds: ["apps/storefront/src/pages/index.tsx"],
       totalFiles: 7,
@@ -1096,19 +1170,19 @@ module.exports = { oldMD5Hash };`
       unreachableCount: 2,
       totalUnreachableBytes: 12400,
       unreachable: [
-        { path: "apps/admin-dashboard/src/components/AnalyticsChart.tsx", bytes: 6400, loc: 150 }
-      ]
+        { path: "apps/admin-dashboard/src/components/AnalyticsChart.tsx", bytes: 6400, loc: 150 },
+      ],
     },
-    "services": {
+    services: {
       srcDir: "services",
       seeds: ["services/api-gateway/src/main.ts"],
       totalFiles: 14,
       reachableCount: 14,
       unreachableCount: 0,
       totalUnreachableBytes: 0,
-      unreachable: []
+      unreachable: [],
     },
-    "legacy": {
+    legacy: {
       srcDir: "legacy",
       seeds: [],
       totalFiles: 6,
@@ -1119,9 +1193,9 @@ module.exports = { oldMD5Hash };`
         { path: "legacy/auth-v1/index.js", bytes: 8400, loc: 280 },
         { path: "legacy/auth-v1/crypto.js", bytes: 12000, loc: 450 },
         { path: "legacy/billing-v1/index.js", bytes: 3400, loc: 90 },
-        { path: "legacy/billing-v1/paypal.js", bytes: 1600, loc: 320 }
-      ]
-    }
+        { path: "legacy/billing-v1/paypal.js", bytes: 1600, loc: 320 },
+      ],
+    },
   };
 
   // Construct Deps
@@ -1133,7 +1207,8 @@ module.exports = { oldMD5Hash };`
         type: "dep",
         declaredRange: "^4.17.21",
         installedVersion: "4.17.21",
-        description: "A modern JavaScript utility library delivering modularity, performance & extras.",
+        description:
+          "A modern JavaScript utility library delivering modularity, performance & extras.",
         isDeprecated: false,
         deprecationMessage: null,
         importCount: 12,
@@ -1146,12 +1221,12 @@ module.exports = { oldMD5Hash };`
             severity: "high",
             title: "Prototype Pollution in lodash",
             package: "lodash",
-            advisoryUrl: "https://github.com/advisories/GHSA-35jh-83p4-7cxh"
-          }
+            advisoryUrl: "https://github.com/advisories/GHSA-35jh-83p4-7cxh",
+          },
         ],
         outdatedInfo: { current: "4.17.21", wanted: "4.17.21", latest: "4.17.21" },
         outdatedSeverity: "none",
-        riskScore: 6.5
+        riskScore: 6.5,
       },
       {
         name: "axios",
@@ -1171,13 +1246,13 @@ module.exports = { oldMD5Hash };`
             severity: "moderate",
             title: "Axios Server-Side Request Forgery",
             package: "axios",
-            advisoryUrl: "https://github.com/advisories/GHSA-42qf-g272-p8gw"
-          }
+            advisoryUrl: "https://github.com/advisories/GHSA-42qf-g272-p8gw",
+          },
         ],
         outdatedInfo: { current: "1.6.0", wanted: "1.6.8", latest: "1.7.2" },
         outdatedSeverity: "minor",
-        riskScore: 4.8
-      }
+        riskScore: 4.8,
+      },
     ],
     subPackages: [
       {
@@ -1193,20 +1268,24 @@ module.exports = { oldMD5Hash };`
             isDeprecated: false,
             deprecationMessage: null,
             importCount: 8,
-            importingFiles: ["packages/shared-ui/src/Button.tsx", "packages/shared-ui/src/Modal.tsx"],
+            importingFiles: [
+              "packages/shared-ui/src/Button.tsx",
+              "packages/shared-ui/src/Modal.tsx",
+            ],
             isUnused: false,
             isConfigOnly: false,
             vulnerabilities: [],
             outdatedInfo: { current: "18.2.0", wanted: "18.2.0", latest: "18.3.1" },
             outdatedSeverity: "minor",
-            riskScore: 2.1
+            riskScore: 2.1,
           },
           {
             name: "classnames",
             type: "dep",
             declaredRange: "^2.3.2",
             installedVersion: "2.3.2",
-            description: "A simple JavaScript utility for conditionally joining classNames together.",
+            description:
+              "A simple JavaScript utility for conditionally joining classNames together.",
             isDeprecated: false,
             deprecationMessage: null,
             importCount: 2,
@@ -1216,8 +1295,8 @@ module.exports = { oldMD5Hash };`
             vulnerabilities: [],
             outdatedInfo: { current: "2.3.2", wanted: "2.3.2", latest: "2.3.2" },
             outdatedSeverity: "none",
-            riskScore: 1.0
-          }
+            riskScore: 1.0,
+          },
         ],
         summary: {
           total: 2,
@@ -1230,13 +1309,13 @@ module.exports = { oldMD5Hash };`
           low: 0,
           unused: 0,
           deprecated: 0,
-          outdated: 1
+          outdated: 1,
         },
         ecosystemWarnings: [],
         auditAvailable: true,
         auditError: null,
-        outdatedAvailable: true
-      }
+        outdatedAvailable: true,
+      },
     ],
     summary: {
       total: 15,
@@ -1249,12 +1328,12 @@ module.exports = { oldMD5Hash };`
       low: 0,
       unused: 1,
       deprecated: 0,
-      outdated: 4
+      outdated: 4,
     },
     ecosystemWarnings: [],
     auditAvailable: true,
     auditError: null,
-    outdatedAvailable: true
+    outdatedAvailable: true,
   };
 
   const meta = {
@@ -1287,7 +1366,7 @@ module.exports = { oldMD5Hash };`
   // Inject mockData + interceptor before app.js
   html = html.replace(
     '<script src="/app.js"></script>',
-    `<script src="mockData.js"></script>\n${INTERCEPTOR_SCRIPT}\n<script src="app.js"></script>`
+    `<script src="mockData.js"></script>\n${INTERCEPTOR_SCRIPT}\n<script src="app.js"></script>`,
   );
   fs.writeFileSync(path.join(OUT_DIR, "index.html"), html);
   console.log(`   → index.html`);
