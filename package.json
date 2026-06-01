@@ -7,8 +7,8 @@
     "reality-map": "./bin/index.js"
   },
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
+    "dev": "node scripts/generate-demo-data.js && vite dev",
+    "build": "node scripts/generate-demo-data.js && vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",

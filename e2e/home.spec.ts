@@ -80,13 +80,31 @@ test.describe("Landing page", () => {
     expect(realErrors).toHaveLength(0);
   });
 
-  test("scrolls smoothly to local-first section on CTA click", async ({ page }) => {
+  test("Open live demo CTA navigates to /demo/", async ({ page }) => {
     await page.goto("/");
     await disableAnimations(page);
     await page
-      .getByRole("button", { name: /Open live demo/i })
-      .waitFor({ state: "visible", timeout: 30000 });
-    await page.getByRole("button", { name: /Open live demo/i }).click();
-    await expect(page.locator("#local-first")).toBeInViewport({ ratio: 0.3 });
+      .getByRole("link", { name: /Open live demo/i })
+      .waitFor({ state: "attached", timeout: 30000 });
+    const href = await page.getByRole("link", { name: /Open live demo/i }).getAttribute("href");
+    expect(href).toBe("/demo/");
+  });
+
+  test("live demo loads mock data successfully", async ({ page }) => {
+    await page.goto("/demo/");
+    // Wait for the mock version/root to load from intercepted api
+    const metaRoot = page.locator("#meta-root");
+    await metaRoot.waitFor({ state: "attached", timeout: 30000 });
+    await expect(metaRoot).toContainText("reality-map (live demo)");
+
+    // Check if the Map canvas element is loaded
+    const canvas = page.locator("#canvas");
+    await expect(canvas).toBeAttached({ timeout: 30000 });
+
+    // Switch to another tab, e.g., Insights, and make sure it renders
+    const insightsTab = page.locator('button[data-tab="insights"]');
+    await insightsTab.click();
+    await expect(page.locator("#view-insights")).toBeVisible();
+    await expect(page.locator("h2.panel-title", { hasText: "Repository insights" })).toBeVisible();
   });
 });
