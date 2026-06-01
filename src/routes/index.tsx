@@ -738,9 +738,11 @@ function FinalCTA() {
           <Button
             type="button"
             className="h-11 rounded-lg bg-foreground px-5 text-background hover:bg-foreground/90"
-            onClick={() => scrollToSection("local-first")}
+            asChild
           >
-            Open live demo <ArrowRight className="ml-1.5 h-4 w-4" />
+            <a href="/demo/">
+              Open live demo <ArrowRight className="ml-1.5 h-4 w-4" />
+            </a>
           </Button>
         </div>
       </div>

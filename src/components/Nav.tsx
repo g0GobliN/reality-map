@@ -195,9 +195,9 @@ export function Nav() {
               type="button"
               size="sm"
               className="h-9 shrink-0 rounded-md bg-foreground text-background hover:bg-foreground/90"
-              onClick={() => scrollToSection("architecture")}
+              asChild
             >
-              Open map
+              <a href="/demo/">Open map</a>
             </Button>
           </div>
         </div>

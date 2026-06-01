@@ -2329,7 +2329,7 @@
         <td style="cursor:pointer;color:var(--cyan)">${f.path}</td>
         <td>${f.loc}</td>
         <td>${statusBadge(f.status)}</td>
-        <td>${f.confidence != null ? `<div class="confidence-bar"><div class="confidence-fill ${confClass}" style="width:${f.confidence}%"></div><span style="font-size:10px;color:var(--muted)">${f.confidence}%</span></div>` : `<span class="dim">—</span>`}</td>
+        <td>${f.confidence != null ? `<div class="confidence-bar"><div class="confidence-track"><div class="confidence-fill ${confClass}" style="width:${f.confidence}%"></div></div><span class="confidence-val">${f.confidence}%</span></div>` : `<span class="dim">—</span>`}</td>
         <td style="color:var(--muted);font-size:11px">${f.reason ?? (f.status === "unreachable" ? "not reachable from any entry point" : "")}</td>
         <td><button class="dc-dismiss-btn" title="Dismiss" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:4px;line-height:1" data-path="${f.path}">✕</button></td>
       `;
@@ -2385,7 +2385,7 @@
       merged.set(p, {
         path: p,
         loc: dc?.loc ?? (scan.fileDetails?.loc?.[p] || 0),
-        confidence: dc?.confidence ?? null,
+        confidence: dc?.confidence ?? 99,
         reason: dc?.reason ?? null,
         status: dc ? "confirmed" : "unreachable",
       });
