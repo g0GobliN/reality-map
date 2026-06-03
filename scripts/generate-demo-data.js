@@ -1338,7 +1338,7 @@ module.exports = { oldMD5Hash };`,
 
   const meta = {
     root: "reality-map (live demo)",
-    version: "1.4.5",
+    version: "1.5.0",
     watch: false,
     maxDepth: 3,
     generatedAt: new Date().toISOString(),

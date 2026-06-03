@@ -95,7 +95,7 @@
     "vite": "8.0.13",
     "vitest": "^4.1.6"
   },
-  "version": "1.4.5",
+  "version": "1.5.0",
   "license": "MIT",
   "homepage": "https://www.g0.monster"
 }
