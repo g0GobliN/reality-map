@@ -2353,13 +2353,26 @@
     let dcData, unreachablePaths;
     try {
       const dirs = (() => {
+        // Prefer workspace-aware src dirs from the scan result (populated by workspaces.js)
+        if (scan.workspaces && scan.workspaces.length) {
+          return scan.workspaces.map(w => w.src).filter(Boolean);
+        }
+        // Fallback heuristic: for monorepos, prefer pkg/src over pkg so that
+        // isNamedEntry() in unreachable.js seeds the correct entry files.
         const allFiles = scan.scannedFilePaths || [];
         const dirCount = new Map();
         for (const f of allFiles) {
           const ext = f.slice(f.lastIndexOf(".")).toLowerCase();
           if (!_SRC_EXTS.has(ext)) continue;
-          const dir = f.includes("/") ? f.split("/")[0] : ".";
-          if (!_EXCLUDED_DIRS.has(dir)) dirCount.set(dir, (dirCount.get(dir) || 0) + 1);
+          const parts = f.split("/");
+          if (!parts.length) continue;
+          const top = parts[0];
+          if (_EXCLUDED_DIRS.has(top)) continue;
+          // Use pkg/src when files live under pkg/src/ (common Vite/CRA monorepo layout)
+          const dir = (parts.length >= 3 && parts[1] === "src")
+            ? top + "/src"
+            : parts.length >= 2 ? top : ".";
+          dirCount.set(dir, (dirCount.get(dir) || 0) + 1);
         }
         return [...dirCount.entries()].sort((a, b) => b[1] - a[1]).map(([d]) => d);
       })();

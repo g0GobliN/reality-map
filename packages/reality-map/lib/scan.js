@@ -4,6 +4,7 @@
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
+const { discoverWorkspaces, loadRealityMapConfig } = require("./workspaces.js");
 
 const IGNORE_DIRS = new Set([
   "node_modules", ".git", ".next", ".turbo", ".cache", "dist", "build",
@@ -43,21 +44,26 @@ function parseRealityMapIgnoreFile(contents) {
 
 function globLineToRegex(line) {
   let s = "";
-  for (let i = 0; i < line.length; i++) {
+  let i = 0;
+  while (i < line.length) {
     const c = line[i];
     if (c === "*") {
+      if (line[i + 1] === "*") {
+        // ** matches anything including path separators
+        s += ".*";
+        i += 2;
+        if (line[i] === "/") i++; // consume trailing slash after **
+        continue;
+      }
       s += "[^/]*";
-      continue;
-    }
-    if (c === "?") {
+    } else if (c === "?") {
       s += "[^/]";
-      continue;
-    }
-    if ("\\.^$+()[]{}|".includes(c)) {
+    } else if ("\\.^$+()[]{}|".includes(c)) {
       s += "\\" + c;
-      continue;
+    } else {
+      s += c;
     }
-    s += c;
+    i++;
   }
   return new RegExp("^" + s + "$");
 }
@@ -84,18 +90,31 @@ function compileRealityMapIgnorePatterns(lines) {
 }
 
 async function loadRealityMapIgnore(root) {
+  const matchers = [];
+
+  // Load .realitymapignore
   const fp = path.join(root, ".realitymapignore");
-  let txt;
   try {
-    txt = await fs.promises.readFile(fp, "utf8");
+    const txt = await fs.promises.readFile(fp, "utf8");
+    matchers.push(...compileRealityMapIgnorePatterns(parseRealityMapIgnoreFile(txt)));
   } catch (e) {
-    if (e && (e.code === "ENOENT" || e.code === "EISDIR")) return [];
-    const err = new Error(`cannot read .realitymapignore: ${fp}`);
-    err.code = "EIGNORE";
-    err.cause = e;
-    throw err;
+    if (e && e.code !== "ENOENT" && e.code !== "EISDIR") {
+      const err = new Error(`cannot read .realitymapignore: ${fp}`);
+      err.code = "EIGNORE";
+      err.cause = e;
+      throw err;
+    }
   }
-  return compileRealityMapIgnorePatterns(parseRealityMapIgnoreFile(txt));
+
+  // Also pick up ignore patterns from .realitymap.json
+  const config = loadRealityMapConfig(root);
+  if (config && Array.isArray(config.ignore) && config.ignore.length) {
+    matchers.push(...compileRealityMapIgnorePatterns(
+      config.ignore.map(p => String(p).replace(/\\/g, "/"))
+    ));
+  }
+
+  return matchers;
 }
 
 function relPosixFromRoot(root, fullPath) {
@@ -375,6 +394,23 @@ function extractFunctionsAndClasses(src, filePath) {
   }
 
   return items;
+}
+
+/**
+ * Walk up from dir toward scanRoot, returning the first directory that
+ * contains a package.json. Falls back to scanRoot if none is found.
+ * Used to resolve Vite-style absolute script src paths (/src/...) against
+ * the correct package root rather than the monorepo root.
+ */
+function findPackageRoot(dir, scanRoot) {
+  let current = dir;
+  while (current.length >= scanRoot.length) {
+    if (fs.existsSync(path.join(current, "package.json"))) return current;
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return scanRoot;
 }
 
 function resolveRel(fromFile, spec, allFiles, codeExtSet) {
@@ -732,6 +768,7 @@ async function scanProject(root, opts = {}) {
   if (ignoreMatchers === undefined) {
     ignoreMatchers = await loadRealityMapIgnore(root);
   }
+  const workspaces = discoverWorkspaces(root);
 
   onProgress({ phase: "discover" });
   const files = await walk(root, { ignoreMatchers, codeExtSet });
@@ -762,11 +799,17 @@ async function scanProject(root, opts = {}) {
       while ((m = HTML_SCRIPT_RE.exec(hsrc)) !== null) {
         const src = m[1];
         if (src.startsWith("http://") || src.startsWith("https://") || src.startsWith("//")) continue;
-        const tgt = resolveRel(hf, src.startsWith("/") ? path.join(root, src) : src.startsWith(".")
-          ? src
-          : "./" + src, fileSet, codeExtSet)
+        // For Vite-style absolute paths (/src/index.jsx), resolve against the HTML
+        // file's nearest package root, not the monorepo root.
+        const pkgRoot = src.startsWith("/") ? findPackageRoot(path.dirname(hf), root) : null;
+        const spec = src.startsWith("/")
+          ? path.join(pkgRoot, src)        // path.join strips leading "/" of src, giving pkgRoot/src/...
+          : src.startsWith(".") ? src : "./" + src;
+        const tgt = resolveRel(hf, spec, fileSet, codeExtSet)
           || (() => {
-            const abs = path.resolve(path.dirname(hf), src.startsWith("/") ? path.join(root, src) : src);
+            const abs = src.startsWith("/")
+              ? path.resolve(pkgRoot, src.slice(1))
+              : path.resolve(path.dirname(hf), src);
             return fileSet.has(abs) ? abs : null;
           })();
         if (tgt && tgt !== hf) fileEdges.push([hf, tgt]);
@@ -1069,6 +1112,7 @@ async function scanProject(root, opts = {}) {
     generatedAt: new Date().toISOString(),
     goModuleName: goModuleName || null,
     pythonSrcDirs,
+    workspaces,
     stats: {
       files: files.length,
       loc: totalLoc,
